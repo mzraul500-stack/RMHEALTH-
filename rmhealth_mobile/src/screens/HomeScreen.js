@@ -17,6 +17,7 @@ import { apiService } from '../api/client';
 import { Logo } from '../components/Logo';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LocalHistoryService } from '../services/LocalHistoryService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * HomeScreen — Manual Vitals Entry + ML Triage Display
@@ -44,6 +45,20 @@ export const HomeScreen = ({ navigation }) => {
   const [sending, setSending] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const [lastSync, setLastSync] = useState(null);
+  const [patientProfile, setPatientProfile] = useState(null);
+
+  // Load patient profile on mount
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const raw = await AsyncStorage.getItem('@rmhealth/patient_profile');
+        if (raw) setPatientProfile(JSON.parse(raw));
+      } catch (e) {
+        console.warn('[HomeScreen] Profile load failed:', e);
+      }
+    };
+    loadProfile();
+  }, []);
 
   /**
    * Send manual vitals to the real API.
@@ -68,7 +83,7 @@ export const HomeScreen = ({ navigation }) => {
     }
 
     const payload = {
-      usuario_id: 'raul_morales_001',
+      usuario_id: patientProfile?.name?.toLowerCase().replace(/\s+/g, '_') || 'paciente_001',
       ecg: 1.0,
       ppg: 1.0,
       oxigeno: ox,
