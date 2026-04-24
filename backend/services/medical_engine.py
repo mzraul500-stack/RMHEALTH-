@@ -35,13 +35,24 @@ class PatientContext(BaseModel):
     alergias: List[str] = []
 
 class AnalysisResult(BaseModel):
-    """Structured output for the critical judgment engine"""
-    emergencia_detectada: bool
-    nivel_criticidad: str  # CRITICAL, HIGH, MEDIUM, LOW, NORMAL
-    score_riesgo: float
-    factores_riesgo: List[str]
-    recomendacion: str
+    """Structured output — Wellness pattern analysis (non-diagnostic)"""
+    alerta_detectada: bool
+    nivel_atencion: str  # CRITICAL, HIGH, MEDIUM, LOW, NORMAL
+    indice_bienestar: float
+    metricas_inusuales: List[str]
+    sugerencia: str
     timestamp: datetime = Field(default_factory=datetime.now)
+    # Aliases for backward compatibility with mobile app
+    @property
+    def emergencia_detectada(self): return self.alerta_detectada
+    @property
+    def nivel_criticidad(self): return self.nivel_atencion
+    @property
+    def score_riesgo(self): return self.indice_bienestar
+    @property
+    def factores_riesgo(self): return self.metricas_inusuales
+    @property
+    def recomendacion(self): return self.sugerencia
 
 class MedicalEngine:
     """
@@ -90,43 +101,43 @@ class MedicalEngine:
             # FACTOR 4: Detección de inconsciencia post-caída
             if vitals.caida_detectada and not vitals.movimiento_posterior:
                 score_riesgo += 50
-                factores_riesgo.append("🚨 Posible inconsciencia post-caída detectada")
+                factores_riesgo.append("🚨 Patrón inusual: posible caída sin movimiento posterior")
 
 
             # DECISIÓN FINAL SEGÚN UMBRALES MJC
             emergencia = False
             nivel = "NORMAL"
-            recomendacion = "✅ Continuar monitoreo rutinario"
+            recomendacion = "✅ Tus métricas están dentro del rango habitual"
 
             if score_riesgo >= cls.UMBRAL_ALTA:
                 nivel = "CRITICAL"
                 emergencia = True
-                recomendacion = "🚨 ACTIVAR PROTOCOLO EMERGENCIA INMEDIATO"
+                recomendacion = "🚨 Patrón atípico detectado — se activó coordinación de respuesta"
             elif score_riesgo >= cls.UMBRAL_MEDIA:
                 nivel = "HIGH"
                 emergencia = True
-                recomendacion = "⚠️ Contactar hospital, preparar traslado"
+                recomendacion = "⚠️ Métricas fuera de rango habitual — notificando contactos"
             elif score_riesgo >= cls.UMBRAL_BAJA:
                 nivel = "MEDIUM"
                 emergencia = False
-                recomendacion = "📊 Monitoreo intensivo, notificar contactos"
+                recomendacion = "📊 Algunas métricas fuera de rango — monitoreo sugerido"
 
             return AnalysisResult(
-                emergencia_detectada=emergencia,
-                nivel_criticidad=nivel,
-                score_riesgo=min(score_riesgo, 100.0),
-                factores_riesgo=factores_riesgo,
-                recomendacion=recomendacion
+                alerta_detectada=emergencia,
+                nivel_atencion=nivel,
+                indice_bienestar=min(score_riesgo, 100.0),
+                metricas_inusuales=factores_riesgo,
+                sugerencia=recomendacion
             )
 
         except Exception as e:
             logger.error(f"Error en MJC: {e}")
             return AnalysisResult(
-                emergencia_detectada=True,
-                nivel_criticidad="CRITICAL",
-                score_riesgo=100.0,
-                factores_riesgo=["Falla en Motor de Juicio Crítico"],
-                recomendacion="REQUERIDA ATENCIÓN INMEDIATA - Error Interno"
+                alerta_detectada=True,
+                nivel_atencion="CRITICAL",
+                indice_bienestar=100.0,
+                metricas_inusuales=["Error en análisis de patrones"],
+                sugerencia="Se sugiere atención — error interno en el sistema"
             )
 
     @staticmethod
@@ -138,89 +149,82 @@ class MedicalEngine:
         ritmo = v.ritmo_cardiaco
         if ritmo > 120:
             score += 30
-            factores.append(f"Taquicardia severa ({ritmo} bpm)")
+            factores.append(f"Pulso muy elevado ({ritmo} bpm) — por encima del rango habitual")
         elif ritmo > 100:
             score += 15
-            factores.append(f"Taquicardia moderada ({ritmo} bpm)")
+            factores.append(f"Pulso elevado ({ritmo} bpm)")
         elif ritmo < 50:
             score += 35
-            factores.append(f"Bradicardia severa ({ritmo} bpm)")
+            factores.append(f"Pulso muy bajo ({ritmo} bpm) — por debajo del rango habitual")
         elif ritmo < 60:
             score += 10
-            factores.append(f"Bradicardia leve ({ritmo} bpm)")
+            factores.append(f"Pulso bajo ({ritmo} bpm)")
 
         # Saturación de oxígeno (Umbrales MJC)
         if v.spo2 < 85:
             score += 40
-            factores.append(f"Hipoxemia crítica (SpO2: {v.spo2}%)")
+            factores.append(f"Oxígeno muy bajo (SpO2: {v.spo2}%) — muy por debajo del rango habitual")
         elif v.spo2 < 90:
             score += 25
-            factores.append(f"Hipoxemia moderada (SpO2: {v.spo2}%)")
+            factores.append(f"Oxígeno bajo (SpO2: {v.spo2}%) — por debajo del rango habitual")
         elif v.spo2 < 94:
             score += 10
-            factores.append(f"Hipoxemia leve (SpO2: {v.spo2}%)")
+            factores.append(f"Oxígeno ligeramente bajo (SpO2: {v.spo2}%)")
 
         # Presión arterial (Umbrales MJC)
         sistolica = v.presion_sistolica
         diastolica = v.presion_diastolica
         if sistolica > 180 or diastolica > 120:
             score += 35
-            factores.append(f"Crisis hipertensiva ({sistolica}/{diastolica})")
+            factores.append(f"Presión arterial muy elevada ({sistolica}/{diastolica}) — muy por encima del rango habitual")
         elif sistolica > 160 or diastolica > 100:
             score += 20
-            factores.append(f"Hipertensión severa ({sistolica}/{diastolica})")
+            factores.append(f"Presión arterial elevada ({sistolica}/{diastolica}) — por encima del rango recomendado")
         elif sistolica < 90 or diastolica < 55:
             score += 30
-            factores.append(f"Hipotensión significativa ({sistolica}/{diastolica})")
+            factores.append(f"Presión arterial baja ({sistolica}/{diastolica}) — por debajo del rango habitual")
         elif sistolica < 100 or diastolica < 60:
             score += 15
-            factores.append(f"Hipotensión leve ({sistolica}/{diastolica})")
+            factores.append(f"Presión ligeramente baja ({sistolica}/{diastolica})")
         elif sistolica >= 140 or diastolica >= 90:
-            # AHA Stage 2 Hypertension
             score += 15
-            factores.append(f"Hipertensión Etapa 2 ({sistolica}/{diastolica}) — AHA")
+            factores.append(f"Presión por encima del rango recomendado ({sistolica}/{diastolica}) — referencia AHA")
         elif sistolica >= 130 or diastolica >= 80:
-            # AHA Stage 1 Hypertension (Elevated)
             score += 8
-            factores.append(f"Hipertensión Etapa 1 ({sistolica}/{diastolica}) — AHA")
+            factores.append(f"Presión ligeramente elevada ({sistolica}/{diastolica}) — referencia AHA")
 
         # Glucosa — ADA Standards of Medical Care 2024
         # Reference: American Diabetes Association, Diabetes Care 2024;47(Suppl.1)
         glucosa = v.glucosa
         if glucosa < 54:
-            # Level 2 Hypoglycemia (ADA) — Clinically significant, needs immediate treatment
             score += 40
-            factores.append(f"Hipoglucemia SEVERA ({glucosa} mg/dL) — ADA Level 2: requiere intervención inmediata")
+            factores.append(f"Glucosa muy baja ({glucosa} mg/dL) — muy por debajo del rango habitual (ref. ADA)")
         elif glucosa < 70:
-            # Level 1 Hypoglycemia (ADA) — Alert value
             score += 20
-            factores.append(f"Hipoglucemia ({glucosa} mg/dL) — ADA Level 1: alerta clínica")
+            factores.append(f"Glucosa por debajo del rango habitual ({glucosa} mg/dL) — referencia ADA")
         elif glucosa > 300:
-            # Severe hyperglycemia — risk of DKA/HHS
             score += 35
-            factores.append(f"Hiperglucemia severa ({glucosa} mg/dL) — Riesgo de cetoacidosis/SHH")
+            factores.append(f"Glucosa muy elevada ({glucosa} mg/dL) — muy por encima del rango habitual")
         elif glucosa > 250:
-            # Moderate hyperglycemia
             score += 20
-            factores.append(f"Hiperglucemia moderada ({glucosa} mg/dL)")
+            factores.append(f"Glucosa elevada ({glucosa} mg/dL) — por encima del rango habitual")
         elif glucosa > 180:
-            # Above target (ADA postprandial)
             score += 10
-            factores.append(f"Glucosa elevada ({glucosa} mg/dL) — sobre rango ADA")
+            factores.append(f"Glucosa ligeramente elevada ({glucosa} mg/dL) — referencia ADA")
 
         # Temperatura corporal
         if v.temperatura > 40.0:
             score += 30
-            factores.append(f"Hipertermia severa ({v.temperatura}°C)")
+            factores.append(f"Temperatura muy elevada ({v.temperatura}°C) — por encima del rango habitual")
         elif v.temperatura > 38.5:
             score += 15
-            factores.append(f"Fiebre ({v.temperatura}°C)")
+            factores.append(f"Temperatura elevada ({v.temperatura}°C)")
         elif v.temperatura < 35.0:
             score += 25
-            factores.append(f"Hipotermia ({v.temperatura}°C)")
+            factores.append(f"Temperatura baja ({v.temperatura}°C) — por debajo del rango habitual")
         elif v.temperatura < 35.5:
             score += 10
-            factores.append(f"Hipotermia leve ({v.temperatura}°C)")
+            factores.append(f"Temperatura ligeramente baja ({v.temperatura}°C)")
 
         return score, factores
 
