@@ -1,0 +1,49 @@
+{
+  "categories": {
+    "presion": {
+      "keywords": ["presion", "presión", "blood pressure", "sistolica", "diastolica", "mmhg", "hipertension", "hipotension"],
+      "response_es": "La presión arterial se mide en milímetros de mercurio (mmHg). El rango habitual según la American Heart Association (AHA) es:\n\n• Normal: menor a 120/80 mmHg\n• Elevada: 120-129 / menor a 80\n• Por encima del rango: 130-139 / 80-89\n• Muy por encima: 140+ / 90+\n\nEstos rangos son referencias generales. Tu médico puede darte rangos personalizados.",
+      "response_en": "Blood pressure is measured in millimeters of mercury (mmHg). The usual range per the American Heart Association (AHA) is:\n\n• Normal: below 120/80 mmHg\n• Elevated: 120-129 / below 80\n• Above range: 130-139 / 80-89\n• Well above range: 140+ / 90+\n\nThese are general references. Your doctor can give you personalized ranges."
+    },
+    "glucosa": {
+      "keywords": ["glucosa", "glucose", "azucar", "azúcar", "sugar", "diabetes", "mg/dl", "ayunas"],
+      "response_es": "La glucosa en sangre se mide en mg/dL. Los rangos habituales según la American Diabetes Association (ADA) son:\n\n• Rango habitual en ayunas: 70-100 mg/dL\n• Después de comer (2 hrs): menor a 140 mg/dL\n• Por debajo del rango: menor a 70 mg/dL\n• Por encima del rango: mayor a 180 mg/dL\n\nEstos valores son referencias generales publicadas por la ADA.",
+      "response_en": "Blood glucose is measured in mg/dL. Usual ranges per the American Diabetes Association (ADA) are:\n\n• Usual fasting range: 70-100 mg/dL\n• After eating (2 hrs): below 140 mg/dL\n• Below range: under 70 mg/dL\n• Above range: over 180 mg/dL\n\nThese are general references published by the ADA."
+    },
+    "pulso": {
+      "keywords": ["pulso", "heart rate", "frecuencia", "cardiaca", "cardíaca", "bpm", "corazon", "corazón", "latidos"],
+      "response_es": "La frecuencia cardíaca se mide en latidos por minuto (bpm). Los rangos habituales para adultos en reposo son:\n\n• Rango habitual: 60-100 bpm\n• Deportistas: puede ser 40-60 bpm\n• Por encima del rango: más de 100 bpm\n• Por debajo del rango: menos de 60 bpm\n\nFactores como ejercicio, estrés, cafeína y medicamentos pueden afectar tu pulso.",
+      "response_en": "Heart rate is measured in beats per minute (bpm). Usual ranges for adults at rest are:\n\n• Usual range: 60-100 bpm\n• Athletes: can be 40-60 bpm\n• Above range: over 100 bpm\n• Below range: under 60 bpm\n\nFactors like exercise, stress, caffeine, and medications can affect your heart rate."
+    },
+    "oxigeno": {
+      "keywords": ["oxigeno", "oxígeno", "spo2", "saturacion", "saturación", "oxygen", "o2"],
+      "response_es": "La saturación de oxígeno (SpO2) mide el porcentaje de oxígeno en tu sangre. Los rangos habituales son:\n\n• Rango habitual: 95-100%\n• Ligeramente bajo: 90-94%\n• Bajo: menor a 90%\n\nLa altitud, la actividad física y ciertas condiciones pueden afectar esta métrica.",
+      "response_en": "Oxygen saturation (SpO2) measures the percentage of oxygen in your blood. Usual ranges are:\n\n• Usual range: 95-100%\n• Slightly low: 90-94%\n• Low: below 90%\n\nAltitude, physical activity, and certain conditions can affect this metric."
+    },
+    "temperatura": {
+      "keywords": ["temperatura", "temperature", "fiebre", "fever", "grados", "celsius"],
+      "response_es": "La temperatura corporal habitual es alrededor de 36.1°C - 37.2°C. Valores de referencia:\n\n• Rango habitual: 36.1 - 37.2°C\n• Ligeramente elevada: 37.3 - 38.0°C\n• Elevada: 38.1 - 39.0°C\n• Muy elevada: mayor a 39°C\n• Baja: menor a 35.5°C\n\nLa temperatura puede variar según la hora del día y el método de medición.",
+      "response_en": "Usual body temperature is around 36.1°C - 37.2°C. Reference values:\n\n• Usual range: 36.1 - 37.2°C\n• Slightly elevated: 37.3 - 38.0°C\n• Elevated: 38.1 - 39.0°C\n• Very elevated: over 39°C\n• Low: below 35.5°C\n\nTemperature can vary by time of day and measurement method."
+    },
+    "medicamento": {
+      "keywords": ["medicamento", "medicina", "pastilla", "medication", "pill", "dosis", "dose", "tomar", "take", "recordatorio", "reminder"],
+      "response_es": "RmHealth te ayuda a llevar un registro de tus medicamentos:\n\n• Puedes agregar medicamentos con nombre, dosis y horario\n• Recibirás recordatorios en el horario que programes\n• El registro de tomas se guarda por 90 días\n• Puedes ver tu adherencia de los últimos 7 días\n\nRecuerda: solo tu médico puede prescribir, cambiar o suspender medicamentos.",
+      "response_en": "RmHealth helps you track your medications:\n\n• You can add medications with name, dose, and schedule\n• You'll receive reminders at your scheduled times\n• Dose records are kept for 90 days\n• You can view your 7-day adherence\n\nRemember: only your doctor can prescribe, change, or discontinue medications."
+    },
+    "emergencia": {
+      "keywords": ["emergencia", "emergency", "sos", "alerta", "alert", "ayuda", "help", "urgente", "urgent"],
+      "response_es": "RmHealth tiene un sistema de coordinación de respuesta:\n\n• El botón SOS envía una alerta con tus métricas y ubicación\n• Se notifica a tus contactos de emergencia registrados\n• Se identifica el centro de atención más cercano\n• Todo se registra en tu historial\n\nEn una situación de emergencia real, contacta directamente a servicios de emergencia locales.",
+      "response_en": "RmHealth has a response coordination system:\n\n• The SOS button sends an alert with your metrics and location\n• Your registered emergency contacts are notified\n• The nearest care center is identified\n• Everything is logged in your history\n\nIn a real emergency, contact local emergency services directly."
+    },
+    "app": {
+      "keywords": ["app", "aplicacion", "aplicación", "funciona", "como", "how", "works", "que hace", "what does"],
+      "response_es": "RmHealth es una plataforma de bienestar y coordinación que:\n\n• Registra tus métricas de salud (pulso, presión, oxígeno, glucosa, temperatura)\n• Detecta patrones inusuales en tus datos\n• Te permite llevar un historial con calendario\n• Gestiona recordatorios de medicamentos\n• Coordina respuesta si detecta algo inusual\n\nToda la información es de carácter informativo y no sustituye la consulta médica.",
+      "response_en": "RmHealth is a wellness and coordination platform that:\n\n• Records your health metrics (heart rate, BP, oxygen, glucose, temperature)\n• Detects unusual patterns in your data\n• Lets you keep a calendar-based history\n• Manages medication reminders\n• Coordinates response if something unusual is detected\n\nAll information is for wellness purposes and does not replace medical consultation."
+    },
+    "reloj": {
+      "keywords": ["reloj", "watch", "smartwatch", "galaxy", "samsung", "wearable", "dispositivo", "device"],
+      "response_es": "RmHealth es compatible con smartwatches que soporten Health Connect:\n\n• Galaxy Watch 4, 5, 6, 7, 8\n• Relojes con Wear OS 3+\n• Los datos del reloj se leen automáticamente\n• Sin reloj, puedes ingresar datos manualmente\n\nLos sensores biométricos son propiedad y responsabilidad del fabricante del reloj.",
+      "response_en": "RmHealth is compatible with smartwatches supporting Health Connect:\n\n• Galaxy Watch 4, 5, 6, 7, 8\n• Watches with Wear OS 3+\n• Watch data is read automatically\n• Without a watch, you can enter data manually\n\nBiometric sensors are the property and responsibility of the watch manufacturer."
+    }
+  }
+}
