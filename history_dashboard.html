@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historial - RM HEALTH B2B</title>
+    <style>
+        body {
+            background-color: #f4f6f9;
+            color: #333;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 30px;
+        }
+        .header-panel {
+            background-color: #0b0c10;
+            color: #66fcf1;
+            padding: 20px 40px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .header-panel h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .stats-badge {
+            background-color: #1f2833;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        th, td {
+            padding: 15px 20px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background-color: #e0e6ed;
+            color: #4a5568;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+        }
+        tr:hover {
+            background-color: #f8fafc;
+        }
+        .severity-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            display: inline-block;
+        }
+        .severity-CRITICAL { background-color: #e53e3e; }
+        .severity-HIGH { background-color: #dd6b20; }
+        .severity-MEDIUM { background-color: #d69e2e; }
+        .severity-LOW { background-color: #3182ce; }
+        .map-link {
+            color: #3182ce;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .map-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-panel">
+        <div>
+            <h1>Dashboard Gerencial: Historial de Urgencias</h1>
+            <p style="color: #c5c6c7; margin: 5px 0 0 0;">Red Médica Automatizada (Memoria Permanente Postgres)</p>
+        </div>
+        <div class="stats-badge">
+            <span id="totalAlerts">0</span> Emergencias Gestionadas
+        </div>
+    </div>
+
+    <table id="historyTable">
+        <thead>
+            <tr>
+                <th>Fecha y Hora</th>
+                <th>ID Paciente</th>
+                <th>Diagnóstico IA</th>
+                <th>Gravedad (Triage)</th>
+                <th>Localización GPS</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            <!-- Data will be populated here -->
+            <tr><td colspan="5" style="text-align:center; padding: 30px;">Cargando historial desde la nube encriptada...</td></tr>
+        </tbody>
+    </table>
+
+    <script>
+        // --- SECURITY: Token is NOT hardcoded. Configure it here or via prompt. ---
+        const API_BASE = "https://rmhealth-api-358326204697.us-central1.run.app";
+        let AUTH_TOKEN = sessionStorage.getItem("rmhealth_token");
+        if (!AUTH_TOKEN) {
+            AUTH_TOKEN = prompt("Enter your RMHealth API token:");
+            if (AUTH_TOKEN) sessionStorage.setItem("rmhealth_token", AUTH_TOKEN);
+        }
+
+        async function fetchHistory() {
+            if (!AUTH_TOKEN) {
+                document.getElementById("tableBody").innerHTML = "<tr><td colspan='5' style='text-align:center; padding: 20px; color: red;'>API token not configured. Reload the page and enter your token.</td></tr>";
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE}/api/emergencies/history`, {
+                    method: "GET",
+                    headers: { "Authorization": `Bearer ${AUTH_TOKEN}` }
+                });
+                
+                const data = await response.json();
+                
+                if(data.status === "success") {
+                    document.getElementById("totalAlerts").innerText = data.count;
+                    const tbody = document.getElementById("tableBody");
+                    tbody.innerHTML = ""; // Clear
+                    
+                    if(data.count === 0) {
+                        tbody.innerHTML = "<tr><td colspan='5' style='text-align:center; padding: 20px;'>No hay infartos registrados aún en la base de datos permanente.</td></tr>";
+                        return;
+                    }
+
+                    data.history.forEach(alert => {
+                        // Extract severity from description (mock parse or default to High)
+                        let severityClass = "CRITICAL";
+                        if(alert.descripcion && alert.descripcion.includes("HIGH")) severityClass = "HIGH";
+                        if(alert.descripcion && alert.descripcion.includes("MEDIUM")) severityClass = "MEDIUM";
+                        if(alert.descripcion && alert.descripcion.includes("LOW")) severityClass = "LOW";
+
+                        const row = document.createElement("tr");
+                        row.innerHTML = `
+                            <td><strong>${new Date(alert.timestamp).toLocaleString("es-MX")}</strong></td>
+                            <td style="font-family: monospace; color: #4a5568;">${alert.usuario_id}</td>
+                            <td>${alert.tipo_emergencia}</td>
+                            <td><span class="severity-badge severity-${severityClass}">${severityClass}</span></td>
+                            <td><a class="map-link" href="https://www.google.com/maps/search/?api=1&query=${alert.ubicacion_lat},${alert.ubicacion_lon}" target="_blank">📍 Ver Mapa (${alert.ubicacion_lat}, ${alert.ubicacion_lon})</a></td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+            } catch (error) {
+                console.error("Error fetching history:", error);
+            }
+        }
+
+        // Fetch exactly once on load (it's a historical dashboard, not real-time tracker)
+        fetchHistory();
+    </script>
+</body>
+</html>

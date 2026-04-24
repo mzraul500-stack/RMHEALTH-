@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "RMHealth",
+    "slug": "rmhealth-vital-guardian",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D9488"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "sounds": [],
+          "icon": "./assets/icon.png",
+          "color": "#0D9488"
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rmhealth.vitalguardian"
+    },
+    "android": {
+      "package": "com.rmhealth.vitalguardian",
+      "versionCode": 2,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0D9488"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "INTERNET",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b0f7cc8c-0b31-4740-8006-1f87519bae95"
+      }
+    },
+    "owner": "rmhealth1"
+  }
+}

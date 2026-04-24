@@ -1,0 +1,27 @@
+{
+  "hr_max": 200.0,
+  "spo2_max": 100.0,
+  "bp_max": 250.0,
+  "sequence_length": 60,
+  "num_features": 3,
+  "feature_names": [
+    "hr_mean",
+    "hr_std",
+    "hr_min",
+    "hr_max",
+    "hr_last",
+    "hr_trend",
+    "spo2_mean",
+    "spo2_std",
+    "spo2_min",
+    "spo2_max",
+    "spo2_last",
+    "spo2_trend",
+    "bp_mean",
+    "bp_std",
+    "bp_min",
+    "bp_max",
+    "bp_last",
+    "bp_trend"
+  ]
+}

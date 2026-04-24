@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Urgencias - RMHEALTH</title>
+    <style>
+        body {
+            background-color: #0b0c10;
+            color: #c5c6c7;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            transition: background-color 0.5s ease;
+        }
+
+        .container {
+            text-align: center;
+            border: 2px solid #45a29e;
+            border-radius: 10px;
+            padding: 40px;
+            width: 80%;
+            max-width: 800px;
+            box-shadow: 0 0 15px rgba(69, 162, 158, 0.4);
+        }
+
+        h1 {
+            color: #66fcf1;
+            font-size: 2.5rem;
+            margin-bottom: 5px;
+        }
+
+        h2 {
+            color: #c5c6c7;
+            font-size: 1.2rem;
+            font-weight: normal;
+            margin-top: 0;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 1.5rem;
+            margin: 20px 0;
+            border: 2px solid #66fcf1;
+            color: #66fcf1;
+            animation: pulse 2s infinite;
+        }
+
+        .alert-mode {
+            background-color: #ff0000 !important;
+            color: white !important;
+        }
+
+        .alert-container {
+            border-color: #ffcccc !important;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.8) !important;
+        }
+
+        .alert-text {
+            color: white !important;
+        }
+
+        .alert-badge {
+            border-color: white !important;
+            color: white !important;
+            background-color: #990000;
+            animation: fastPulse 0.5s infinite !important;
+        }
+
+        .data-panel {
+            display: none;
+            text-align: left;
+            margin-top: 20px;
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .data-panel p {
+            font-size: 1.2rem;
+            margin: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 5px;
+        }
+
+        .highlight {
+            font-weight: bold;
+            font-size: 1.4rem;
+            color: #ffeb3b;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(102, 252, 241, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 15px rgba(102, 252, 241, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(102, 252, 241, 0);
+            }
+        }
+
+        @keyframes fastPulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.8);
+            }
+
+            50% {
+                box-shadow: 0 0 0 20px rgba(255, 255, 255, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+            }
+        }
+    </style>
+</head>
+
+<body id="mainBody">
+
+    <div class="container" id="mainContainer">
+        <h1 id="titleText">HOSPITAL CIVIL - SALA DE URGENCIAS</h1>
+        <h2 id="subtitleText">Receptor Automatizado RMHEALTH (Protocolo FHIR)</h2>
+
+        <div class="status-badge" id="statusBadge">
+            MONITOREANDO PACIENTES...
+        </div>
+
+        <div class="data-panel" id="dataPanel">
+            <h3 style="color:#ffeb3b; border-bottom: 2px solid white; padding-bottom: 10px;">DATOS ENTRANTES DEL
+                BRAZALETE</h3>
+            <p>ID Paciente: <span id="pacienteId" class="highlight"></span></p>
+            <p>Alarma Médica: <span id="tipoEmergencia" class="highlight"></span></p>
+            <p>Diagnóstico de IA: <span id="descEmergencia"></span></p>
+            <p>Localización GPS: <span id="gpsCoords" style="color: #6eb5ff;"></span> <a id="mapLink" href="#"
+                    target="_blank" style="color: #6eb5ff;">(Ver Mapa)</a></p>
+            <p>Protocolo: <span style="color: #4CAF50; font-weight: bold;">AMBULANCIA AUTORIZADA EN CAMINO</span></p>
+        </div>
+    </div>
+
+    <!-- Sonido de alarma -->
+    <audio id="alarmSound" loop preload="auto">
+        <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+    </audio>
+
+    <script>
+        // --- SECURITY: Token is NOT hardcoded. Configure it here or via prompt. ---
+        const API_BASE = "https://rmhealth-api-358326204697.us-central1.run.app";
+        let AUTH_TOKEN = sessionStorage.getItem("rmhealth_token");
+        if (!AUTH_TOKEN) {
+            AUTH_TOKEN = prompt("Enter your RMHealth API token:");
+            if (AUTH_TOKEN) sessionStorage.setItem("rmhealth_token", AUTH_TOKEN);
+        }
+
+        let lastAlertId = null;
+        let isAlerting = false;
+
+        async function checkForEmergencies() {
+            if (!AUTH_TOKEN) return;
+            try {
+                const response = await fetch(`${API_BASE}/api/emergencies/latest`, {
+                    method: "GET",
+                    headers: { "Authorization": `Bearer ${AUTH_TOKEN}` }
+                });
+
+                const data = await response.json();
+
+                if (data.status === "success" && data.alert) {
+                    // Check if it's a new alert we haven't seen yet
+                    if (data.alert.id !== lastAlertId) {
+                        lastAlertId = data.alert.id;
+                        triggerAlarm(data.alert);
+                    }
+                }
+            } catch (error) {
+                console.log("Esperando señales...");
+            }
+        }
+
+        function triggerAlarm(alertData) {
+            if (isAlerting) return;
+            isAlerting = true;
+
+            // Cambiar estilos a rojo
+            document.getElementById("mainBody").classList.add("alert-mode");
+            document.getElementById("mainContainer").classList.add("alert-container");
+            document.getElementById("titleText").classList.add("alert-text");
+            document.getElementById("subtitleText").classList.add("alert-text");
+
+            const badge = document.getElementById("statusBadge");
+            badge.innerText = "¡ALERTA CRÍTICA RECIBIDA!";
+            badge.classList.remove("status-badge");
+            badge.classList.add("status-badge", "alert-badge");
+
+            // Mostrar información
+            document.getElementById("dataPanel").style.display = "block";
+            document.getElementById("pacienteId").innerText = alertData.usuario_id;
+            document.getElementById("tipoEmergencia").innerText = alertData.tipo_emergencia;
+            document.getElementById("descEmergencia").innerText = alertData.descripcion;
+
+            const lat = alertData.ubicacion_lat;
+            const lon = alertData.ubicacion_lon;
+            document.getElementById("gpsCoords").innerText = `${lat}, ${lon}`;
+            document.getElementById("mapLink").href = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+
+            // Sonar alarma (los navegadores pueden bloquear el sonido si no hubo interaccion humana previa, 
+            // pero para la demo funcionará si la página ya tuvo un clic)
+            const audio = document.getElementById("alarmSound");
+            audio.play().catch(e => console.log("Audio play blocked by browser."));
+        }
+
+        // Consultar cada 3 segundos
+        setInterval(checkForEmergencies, 3000);
+    </script>
+</body>
+
+</html>

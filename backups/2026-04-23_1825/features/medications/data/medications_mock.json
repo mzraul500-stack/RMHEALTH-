@@ -1,0 +1,26 @@
+[
+  {
+    "id": "1",
+    "name": "Losartán",
+    "dosage": "50 mg",
+    "frequency": "Cada 12 horas",
+    "time": "08:00 AM",
+    "taken": true
+  },
+  {
+    "id": "2",
+    "name": "Aspirina Protect",
+    "dosage": "100 mg",
+    "frequency": "Cada 24 horas",
+    "time": "02:00 PM",
+    "taken": false
+  },
+  {
+    "id": "3",
+    "name": "Atorvastatina",
+    "dosage": "20 mg",
+    "frequency": "Cada 24 horas",
+    "time": "09:00 PM",
+    "taken": false
+  }
+]

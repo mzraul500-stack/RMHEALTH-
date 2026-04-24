@@ -1,0 +1,14 @@
+name: rmhealth-medical-system
+metadata:
+  template: rmhealth-medical-emergency@1.0.0
+  
+services:
+  rmhealth-api:
+    project: ./api
+    language: python
+    host: containerapp
+    
+  rmhealth-backend:
+    project: ./backend  
+    language: python
+    host: containerapp

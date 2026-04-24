@@ -1,0 +1,40 @@
+﻿╔══════════════════════════════════════════════════════════════════════════════╗
+║  🔐 REGISTRO DE PROPIEDAD INTELECTUAL - RM SPACE / RAÚL MORENO              ║
+║  📅 Fecha de Registro: 2026-01-18 11:49:24                                    ║
+║  🔑 Algoritmo: SHA-256 (Estándar Criptográfico Internacional)               ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+ARCHIVOS PROTEGIDOS:
+====================
+
+📄 Archivo: Modelfile
+   SHA-256: F857DD28A8E1C36A8D5BDCC821151164BF23EF71642D534AE4CB9A8E3CED8891
+   Tamaño: 4040 bytes
+
+📄 Archivo: benchmark_arc_challenge_results.json
+   SHA-256: 3A332195D347A5F4C5C50ED0C9C15113FBAC021AEB0D7F1B6AE704972ED14499
+   Tamaño: 26861 bytes
+
+📄 Archivo: benchmark_rm_aiq.py
+   SHA-256: C67612DF5BE446C07719447304E7A030646AC04B10B96115FD839052AD3D1CEE
+   Tamaño: 17881 bytes
+
+📄 Archivo: benchmark_arc_challenge.py
+   SHA-256: 3DAB51E8939D859610D2A747B9BFFC4BCFB44B15FAD51AF3544846C6F37807D1
+   Tamaño: 33088 bytes
+
+📄 Archivo: README_RM_AIQ_MODEL.md
+   SHA-256: 74ABAEEA4459F44DAA930267BC1CA5842BC8CFB7BBAD37D72681DF49A335EFAB
+   Tamaño: 7991 bytes
+
+══════════════════════════════════════════════════════════════════════════════
+DECLARACIÓN DE AUTORÍA:
+Este registro certifica que los archivos listados fueron creados por:
+
+   Autor: Raúl Moreno (RM SPACE)
+   Proyecto: RM AIQ - Lógica Trinaria Anti-Alucinación
+   Fecha: 2026-01-18 11:49:24
+   
+Cualquier hash idéntico demuestra que el contenido no ha sido modificado
+desde esta fecha de registro.
+══════════════════════════════════════════════════════════════════════════════

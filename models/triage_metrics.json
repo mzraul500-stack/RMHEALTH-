@@ -1,0 +1,62 @@
+{
+  "accuracy": 0.91875,
+  "classification_report": {
+    "BAJO": {
+      "precision": 0.8855421686746988,
+      "recall": 0.91875,
+      "f1-score": 0.901840490797546,
+      "support": 640.0
+    },
+    "MEDIO": {
+      "precision": 0.8571428571428571,
+      "recall": 0.81,
+      "f1-score": 0.8329048843187661,
+      "support": 400.0
+    },
+    "ALTO": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 320.0
+    },
+    "CRITICO": {
+      "precision": 1.0,
+      "recall": 0.9916666666666667,
+      "f1-score": 0.99581589958159,
+      "support": 240.0
+    },
+    "accuracy": 0.91875,
+    "macro avg": {
+      "precision": 0.935671256454389,
+      "recall": 0.9301041666666666,
+      "f1-score": 0.9326403186744755,
+      "support": 1600.0
+    },
+    "weighted avg": {
+      "precision": 0.9185025817555937,
+      "recall": 0.91875,
+      "f1-score": 0.9183348023359484,
+      "support": 1600.0
+    }
+  },
+  "feature_importances": {
+    "heart_rate": 0.00711659239792539,
+    "spo2": 0.09526137260227499,
+    "bp_sys": 0.006156135239038251,
+    "bp_dia": 0.010683702998610784,
+    "glucose": 0.23194114235324106,
+    "temperature": 0.13552814655762047,
+    "age": 0.005027525307575738,
+    "pulse_pressure": 0.01426934103378584,
+    "mean_arterial_pressure": 0.10001478637639293,
+    "shock_index": 0.02803891303062088,
+    "hr_spo2_ratio": 0.01399362412426324,
+    "hr_deviation": 0.080400861044365,
+    "spo2_deviation": 0.10933704909231394,
+    "bp_deviation": 0.05719932872387614,
+    "glucose_deviation": 0.1050314791180954
+  },
+  "n_samples": 8000,
+  "n_features": 15,
+  "model_path": "D:\\RMHealth_Ecosystem\\models\\triage_classifier.joblib"
+}
