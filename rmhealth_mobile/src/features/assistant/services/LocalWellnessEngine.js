@@ -26,7 +26,7 @@ export class LocalWellnessEngine {
     const disclaimer = lang === 'en' ? DISCLAIMER_EN : DISCLAIMER_ES;
 
     // 1. Check for summary requests
-    if (this._matchesIntent(input, ['resumen', 'resúmeme', 'summary', 'semana', 'week', 'como estoy', 'how am i'])) {
+    if (this._matchesIntent(input, ['resumen', 'resúmeme', 'summary', 'semana', 'week', 'como estoy', 'how am i', 'informe', 'reporte', 'report', 'datos', 'estadisticas', 'estadísticas', 'stats', 'mis datos', 'my data', 'como voy', 'mi salud', 'my health', 'historial', 'resúmeme mi', 'dame mi'])) {
       return await this._generateSummary(lang) + disclaimer;
     }
 
@@ -82,7 +82,7 @@ export class LocalWellnessEngine {
   // ── HISTORY SUMMARY ──
   static async _generateSummary(lang) {
     try {
-      const raw = await AsyncStorage.getItem('@rmhealth/history');
+      const raw = await AsyncStorage.getItem('@rmhealth_vitals_history');
       if (!raw) {
         return lang === 'en'
           ? '📊 No records yet. Start by entering your health metrics on the home screen.'
@@ -103,12 +103,12 @@ export class LocalWellnessEngine {
       // Calculate averages
       const avg = (arr) => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(0) : '--';
       
-      const hrs = recent.map(r => r.payload?.frecuencia_cardiaca).filter(Boolean);
-      const sys = recent.map(r => r.payload?.presion_sistolica).filter(Boolean);
-      const dia = recent.map(r => r.payload?.presion_diastolica).filter(Boolean);
-      const glu = recent.map(r => r.payload?.glucosa).filter(Boolean);
-      const spo = recent.map(r => r.payload?.oxigeno).filter(Boolean);
-      const anomalies = recent.filter(r => r.result?.analysis?.nivel_atencion !== 'NORMAL' && r.result?.analysis?.nivel_criticidad !== 'NORMAL');
+      const hrs = recent.map(r => r.vitals?.hr).filter(Boolean);
+      const sys = recent.map(r => r.vitals?.sys).filter(Boolean);
+      const dia = recent.map(r => r.vitals?.dia).filter(Boolean);
+      const glu = recent.map(r => r.vitals?.glucose).filter(Boolean);
+      const spo = recent.map(r => r.vitals?.spo2).filter(Boolean);
+      const anomalies = recent.filter(r => r.tipo_emergencia && r.tipo_emergencia !== 'NORMAL');
 
       if (lang === 'en') {
         return `📊 **Your 7-Day Wellness Summary**\n\n` +

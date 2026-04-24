@@ -26,14 +26,14 @@ export const t = {
     language_label: 'ES 🇲🇽',
     language_switch: 'EN 🇺🇸',
 
-    // === WELLNESS DISCLAIMER (persistent banner) ===
-    disclaimer_banner: 'RmHealth es una plataforma de bienestar y coordinación. Detecta patrones en tus métricas de salud y no sustituye la consulta médica profesional.',
-    disclaimer_checkbox: 'Entiendo que estos datos son informativos y reflejan patrones, no un diagnóstico médico.',
+    // === CLINICAL DISCLAIMER (persistent banner) ===
+    disclaimer_banner: 'RmHealth es una herramienta de monitoreo personal. No constituye un dispositivo médico, no realiza diagnósticos y no sustituye la consulta médica profesional.',
+    disclaimer_checkbox: 'Entiendo que estos datos son informativos y no constituyen un diagnóstico médico.',
     disclaimer_title: 'Aviso Importante',
 
     // === FDA / COFEPRIS UNIVERSAL LINE ===
-    fda_line: 'Esta aplicación es una plataforma de bienestar. No está destinada a diagnosticar, tratar, curar ni prevenir ninguna enfermedad.',
-    fda_reference: 'Política de Bienestar General FDA / Software de Bienestar',
+    fda_line: 'Esta aplicación no está destinada a diagnosticar, tratar, curar ni prevenir ninguna enfermedad.',
+    fda_reference: 'Política de Bienestar General FDA / COFEPRIS Clase I',
 
     // === PRIVACY NOTICE ===
     privacy_title: 'Aviso de Privacidad',
@@ -42,7 +42,7 @@ export const t = {
     privacy_data_collected: 'Datos recabados',
     privacy_data_collected_value: 'Nombre, edad, signos vitales ingresados manualmente por el usuario.',
     privacy_purpose: 'Finalidad',
-    privacy_purpose_value: 'Detección de patrones en métricas de bienestar y coordinación de respuesta. La información generada refleja patrones y no sustituye la evaluación de un profesional de la salud.',
+    privacy_purpose_value: 'Monitoreo personal de salud — sin diagnóstico clínico. La información generada es estrictamente informativa y no sustituye la evaluación de un profesional de la salud.',
     privacy_rights: 'Derechos ARCO',
     privacy_rights_value: 'Usted tiene derecho a Acceder, Rectificar, Cancelar u Oponerse al tratamiento de sus datos personales. Para ejercer estos derechos, contacte a: contacto@rmhealth.ai',
     privacy_transfers: 'Transferencias',
@@ -92,20 +92,20 @@ El uso de esta aplicación implica la aceptación plena de los presentes términ
     about_patent: 'Patente pendiente',
     about_patent_value: 'IMPI México',
     about_classification: 'Clasificación',
-    about_classification_value: 'Plataforma de bienestar y coordinación — No Dispositivo Médico',
+    about_classification_value: 'Software de monitoreo personal — No Dispositivo Médico',
     about_regulatory: 'Normativa de referencia',
     about_regulatory_value: 'LFPDPPP, NOM-024-SSA3-2012',
 
     // === HOME SCREEN ===
-    home_title: 'Tu Bienestar',
-    home_subtitle: 'Ingresa tus métricas de salud',
+    home_title: 'Monitor de Salud',
+    home_subtitle: 'Ingrese sus signos vitales manualmente',
     vital_heart_rate: 'Frecuencia Cardíaca (bpm)',
     vital_spo2: 'Saturación O₂ (%)',
     vital_systolic: 'Presión Sistólica (mmHg)',
     vital_diastolic: 'Presión Diastólica (mmHg)',
     vital_glucose: 'Glucosa (mg/dL)',
     vital_temperature: 'Temperatura (°C)',
-    vital_submit: 'Analizar Patrones',
+    vital_submit: 'Enviar Signos Vitales',
     vital_result: 'Resultado del Análisis',
 
     // === NAVIGATION ===
@@ -138,13 +138,13 @@ El uso de esta aplicación implica la aceptación plena de los presentes términ
     language_label: 'EN 🇺🇸',
     language_switch: 'ES 🇲🇽',
 
-    // === WELLNESS DISCLAIMER (persistent banner) ===
-    disclaimer_banner: 'RmHealth is a wellness and coordination platform. It detects patterns in your health metrics and does not replace professional medical consultation.',
-    disclaimer_checkbox: 'I understand that this data is informational and reflects patterns, not a medical diagnosis.',
+    // === CLINICAL DISCLAIMER (persistent banner) ===
+    disclaimer_banner: 'RmHealth is a personal monitoring tool. It is not a medical device, does not perform diagnoses, and does not replace professional medical consultation.',
+    disclaimer_checkbox: 'I understand that this data is informational and does not constitute a medical diagnosis.',
     disclaimer_title: 'Important Notice',
 
     // === FDA / COFEPRIS UNIVERSAL LINE ===
-    fda_line: 'This application is a wellness platform. It is not intended to diagnose, treat, cure, or prevent any disease.',
+    fda_line: 'This application is not intended to diagnose, treat, cure, or prevent any disease.',
     fda_reference: 'FDA General Wellness: Policy for Low Risk Devices',
 
     // === PRIVACY NOTICE ===
@@ -204,20 +204,20 @@ Use of this application constitutes full acceptance of these terms.`,
     about_patent: 'Patent pending',
     about_patent_value: 'IMPI Mexico',
     about_classification: 'Classification',
-    about_classification_value: 'Wellness and coordination platform — Not a Medical Device',
+    about_classification_value: 'Personal monitoring software — Not a Medical Device',
     about_regulatory: 'Regulatory reference',
     about_regulatory_value: 'FDA General Wellness Policy (January 2026)',
 
     // === HOME SCREEN ===
-    home_title: 'Your Wellness',
-    home_subtitle: 'Enter your health metrics',
+    home_title: 'Health Monitor',
+    home_subtitle: 'Enter your vital signs manually',
     vital_heart_rate: 'Heart Rate (bpm)',
     vital_spo2: 'O₂ Saturation (%)',
     vital_systolic: 'Systolic Pressure (mmHg)',
     vital_diastolic: 'Diastolic Pressure (mmHg)',
     vital_glucose: 'Glucose (mg/dL)',
     vital_temperature: 'Temperature (°C)',
-    vital_submit: 'Analyze Patterns',
+    vital_submit: 'Submit Vital Signs',
     vital_result: 'Analysis Result',
 
     // === NAVIGATION ===

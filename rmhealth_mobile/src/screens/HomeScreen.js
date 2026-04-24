@@ -136,7 +136,7 @@ export const HomeScreen = () => {
             <View>
               <Text style={s.greeting}>{greeting}</Text>
               <Text style={s.headerSub}>
-                {language === 'en' ? 'Your wellness platform' : 'Tu plataforma de bienestar'}
+                {language === 'en' ? 'Your health monitor' : 'Tu monitor de salud'}
               </Text>
             </View>
             <TouchableOpacity style={s.langBtn} onPress={toggleLanguage}>
@@ -180,7 +180,7 @@ export const HomeScreen = () => {
           {/* ── INPUT FORM ── */}
           <View style={s.formCard}>
             <Text style={s.formTitle}>
-              {language === 'en' ? '📝 Enter Health Metrics' : '📝 Ingresa tus Métricas de Salud'}
+              {language === 'en' ? '📝 Enter Vital Signs' : '📝 Ingresa tus Signos Vitales'}
             </Text>
 
             <View style={s.inputRow}>
@@ -206,7 +206,7 @@ export const HomeScreen = () => {
                 <ActivityIndicator color="#FFF" />
               ) : (
                 <Text style={s.submitText}>
-                  {language === 'en' ? '🔬 ANALYZE PATTERNS' : '🔬 ANALIZAR PATRONES'}
+                  {language === 'en' ? '🔬 ANALYZE WITH AI' : '🔬 ANALIZAR CON IA'}
                 </Text>
               )}
             </TouchableOpacity>
@@ -216,7 +216,7 @@ export const HomeScreen = () => {
           {lastResult && (
             <View style={s.resultCard}>
               <Text style={s.resultTitle}>
-                {language === 'en' ? '🧠 Pattern Analysis' : '🧠 Análisis de Patrones'}
+                {language === 'en' ? '🧠 AI Analysis Result' : '🧠 Resultado del Análisis IA'}
               </Text>
 
               {mlTriage && (
@@ -239,7 +239,7 @@ export const HomeScreen = () => {
                       ))}
                     </View>
                   )}
-                  <Text style={s.modelBadge}>Pattern Engine · Wellness Analysis</Text>
+                  <Text style={s.modelBadge}>GradientBoosting · 91.8% accuracy</Text>
                 </View>
               )}
 

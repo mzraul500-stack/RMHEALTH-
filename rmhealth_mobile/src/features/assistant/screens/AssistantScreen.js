@@ -123,7 +123,7 @@ export const AssistantScreen = () => {
       </View>
 
       {/* Messages */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 100}>
         <ScrollView
           ref={scrollRef}
           style={s.chatArea}
