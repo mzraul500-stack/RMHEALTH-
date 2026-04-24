@@ -1,7 +1,8 @@
 import React, { useState, useEffect, Component } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { StatusBar, ActivityIndicator, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { StatusBar, ActivityIndicator, View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 
 // Screens
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -20,7 +21,66 @@ import { InformedConsentScreen, isConsentGiven } from './src/screens/legal/Infor
 import { LanguageProvider } from './src/contexts/LanguageContext';
 import { COLORS } from './src/theme';
 
+const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
+
+// ============================================================
+// CUSTOM TAB BAR ICONS (Unicode-based, no external lib needed)
+// ============================================================
+const TAB_ICONS = {
+  Home:     { active: '🏠', inactive: '🏡', label_es: 'Inicio',       label_en: 'Home' },
+  History:  { active: '📅', inactive: '📆', label_es: 'Historial',    label_en: 'History' },
+  Meds:     { active: '💊', inactive: '💉', label_es: 'Medicinas',    label_en: 'Meds' },
+  Profile:  { active: '👤', inactive: '👥', label_es: 'Perfil',       label_en: 'Profile' },
+  More:     { active: '⚙️', inactive: '⚙️', label_es: 'Más',          label_en: 'More' },
+};
+
+// ============================================================
+// MORE STACK — Settings, About, Device Settings
+// ============================================================
+function MoreStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: COLORS.background, elevation: 0, shadowOpacity: 0 },
+        headerTintColor: COLORS.secondary,
+        headerTitleStyle: { fontWeight: '800' },
+      }}
+    >
+      <Stack.Screen name="MoreMenu" component={MoreMenuScreen} options={{ title: 'Configuración' }} />
+      <Stack.Screen name="DeviceSettings" component={DeviceSettingsScreen} options={{ title: 'Dispositivos' }} />
+      <Stack.Screen name="About" component={AboutScreen} options={{ title: 'RmHealth' }} />
+    </Stack.Navigator>
+  );
+}
+
+// Simple More Menu
+function MoreMenuScreen({ navigation }) {
+  const menuItems = [
+    { icon: '⌚', label: 'Dispositivos / Relojes', screen: 'DeviceSettings' },
+    { icon: 'ℹ️', label: 'Acerca de RmHealth', screen: 'About' },
+  ];
+
+  return (
+    <View style={{ flex: 1, backgroundColor: COLORS.background, padding: 16 }}>
+      {menuItems.map((item, i) => (
+        <TouchableOpacity
+          key={i}
+          style={{
+            flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface,
+            padding: 18, borderRadius: 14, marginBottom: 10,
+            borderWidth: 1, borderColor: COLORS.border, elevation: 2,
+          }}
+          onPress={() => navigation.navigate(item.screen)}
+        >
+          <Text style={{ fontSize: 24, marginRight: 14 }}>{item.icon}</Text>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text, flex: 1 }}>{item.label}</Text>
+          <Text style={{ fontSize: 18, color: '#94A3B8' }}>›</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
 
 // ============================================================
 // ERROR BOUNDARY — Prevents full app crash on JS errors
@@ -117,7 +177,7 @@ function LegalGate({ children }) {
 }
 
 // ============================================================
-// APP ROOT
+// APP ROOT — Premium Bottom Tab Navigation
 // ============================================================
 export default function App() {
   return (
@@ -125,28 +185,74 @@ export default function App() {
       <LanguageProvider>
         <LegalGate>
           <NavigationContainer>
-            <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
-            <Stack.Navigator
-              initialRouteName="Home"
-              screenOptions={{
-                headerStyle: { backgroundColor: COLORS.background, elevation: 0, shadowOpacity: 0 },
-                headerTintColor: COLORS.text,
-                headerTitleStyle: { fontWeight: 'bold', color: COLORS.secondary },
-              }}
+            <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} translucent={false} />
+            <Tab.Navigator
+              screenOptions={({ route }) => ({
+                headerShown: false,
+                tabBarIcon: ({ focused }) => {
+                  const icon = TAB_ICONS[route.name];
+                  return (
+                    <View style={focused ? tabStyles.iconContainerActive : tabStyles.iconContainer}>
+                      <Text style={tabStyles.iconText}>{focused ? icon.active : icon.inactive}</Text>
+                    </View>
+                  );
+                },
+                tabBarLabel: ({ focused }) => {
+                  const icon = TAB_ICONS[route.name];
+                  return (
+                    <Text style={[tabStyles.label, focused && tabStyles.labelActive]}>
+                      {icon.label_es}
+                    </Text>
+                  );
+                },
+                tabBarStyle: tabStyles.bar,
+                tabBarHideOnKeyboard: true,
+              })}
             >
-              <Stack.Screen 
-                name="Home" component={HomeScreen} 
-                options={{ headerShown: false }} 
-              />
-              <Stack.Screen name="Medications" component={MedicationScreen} options={{ title: 'Medicamentos' }} />
-              <Stack.Screen name="History" component={HistoryScreen} options={{ title: 'Historial' }} />
-              <Stack.Screen name="DeviceSettings" component={DeviceSettingsScreen} options={{ title: 'Dispositivos' }} />
-              <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Perfil' }} />
-              <Stack.Screen name="About" component={AboutScreen} options={{ title: 'RmHealth' }} />
-            </Stack.Navigator>
+              <Tab.Screen name="Home" component={HomeScreen} />
+              <Tab.Screen name="History" component={HistoryScreen} />
+              <Tab.Screen name="Meds" component={MedicationScreen} />
+              <Tab.Screen name="Profile" component={ProfileScreen} />
+              <Tab.Screen name="More" component={MoreStack} />
+            </Tab.Navigator>
           </NavigationContainer>
         </LegalGate>
       </LanguageProvider>
     </ErrorBoundary>
   );
 }
+
+// ============================================================
+// TAB BAR STYLES — Samsung Health inspired
+// ============================================================
+const tabStyles = StyleSheet.create({
+  bar: {
+    backgroundColor: COLORS.surface,
+    borderTopWidth: 0,
+    elevation: 20,
+    shadowColor: '#1B4F72',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    height: Platform.OS === 'ios' ? 88 : 90,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 24,
+  },
+  iconContainer: {
+    width: 40, height: 32, justifyContent: 'center', alignItems: 'center',
+  },
+  iconContainerActive: {
+    width: 40, height: 32, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: COLORS.primary + '18',
+    borderRadius: 16,
+  },
+  iconText: {
+    fontSize: 22,
+  },
+  label: {
+    fontSize: 10, fontWeight: '600', color: '#94A3B8', marginTop: 2,
+  },
+  labelActive: {
+    color: COLORS.primary, fontWeight: '800',
+  },
+});
