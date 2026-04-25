@@ -21,6 +21,7 @@ import { InformedConsentScreen, isConsentGiven } from './src/screens/legal/Infor
 // Context
 import { LanguageProvider } from './src/contexts/LanguageContext';
 import { COLORS } from './src/theme';
+import { LocationService } from './src/services/LocationService';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -149,20 +150,38 @@ function LegalGate({ children }) {
   const [consentOk, setConsentOk] = useState(false);
 
   useEffect(() => {
-    checkLegalStatus();
-  }, []);
+    async function prepare() {
+      try {
+        // 1. Check legal gates
+        const privacy = await isPrivacyAccepted();
+        const terms = await isTermsAccepted();
+        const consent = await isConsentGiven();
 
-  const checkLegalStatus = async () => {
-    const [p, t, c] = await Promise.all([
-      isPrivacyAccepted(),
-      isTermsAccepted(),
-      isConsentGiven(),
-    ]);
-    setPrivacyOk(p);
-    setTermsOk(t);
-    setConsentOk(c);
-    setLoading(false);
-  };
+        setPrivacyOk(privacy);
+        setTermsOk(terms);
+        setConsentOk(consent);
+
+        if (privacy && terms && consent) {
+          // Start background tracking if all legal gates are passed
+          LocationService.startBackgroundTracking();
+        }
+
+        // 2. Request initial permissions (Non-blocking)
+        setTimeout(async () => {
+          await LocationService.requestPermissions();
+          // Also request notification permissions so they're not blocked by default
+          const { requestNotificationPermissions } = require('./src/services/NotificationService');
+          await requestNotificationPermissions();
+        }, 2000);
+
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    prepare();
+  }, []);
 
   if (loading) {
     return (
@@ -208,8 +227,14 @@ export default function App() {
                     </Text>
                   );
                 },
-                tabBarStyle: tabStyles.bar,
+                tabBarStyle: [tabStyles.bar, { display: route.name === 'Coach' ? 'none' : 'flex' }],
                 tabBarHideOnKeyboard: true,
+                tabBarActiveTintColor: '#000000',
+                tabBarInactiveTintColor: '#000000',
+                tabBarVisibilityAnimationConfig: {
+                  show: { animation: 'timing', config: { duration: 0 } },
+                  hide: { animation: 'timing', config: { duration: 0 } }
+                }
               })}
             >
               <Tab.Screen name="Home" component={HomeScreen} />
@@ -253,9 +278,9 @@ const tabStyles = StyleSheet.create({
     fontSize: 22,
   },
   label: {
-    fontSize: 10, fontWeight: '600', color: '#94A3B8', marginTop: 2,
+    fontSize: 11, fontWeight: '900', color: '#000000', marginTop: 2,
   },
   labelActive: {
-    color: COLORS.primary, fontWeight: '800',
+    color: '#000000', fontWeight: '900',
   },
 });

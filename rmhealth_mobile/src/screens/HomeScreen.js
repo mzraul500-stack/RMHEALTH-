@@ -10,6 +10,7 @@ import { apiService } from '../api/client';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LocalHistoryService } from '../services/LocalHistoryService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LocationService } from '../services/LocationService';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -61,18 +62,21 @@ export const HomeScreen = () => {
       return;
     }
 
-    const payload = {
-      usuario_id: patientProfile?.name?.toLowerCase().replace(/\s+/g, '_') || 'paciente_001',
-      ecg: 1.0, ppg: 1.0,
-      oxigeno: ox, presion_sistolica: sys, presion_diastolica: dia,
-      frecuencia_cardiaca: hr, temperatura: t || 36.6,
-      glucosa: parseFloat(glucosa) || 90.0,
-      ubicacion_lat: 16.8634, ubicacion_lon: -99.8901,
-      dispositivo_id: 'manual_input', emergencia_detectada: false,
-    };
-
     setSending(true);
     try {
+      // 1. Get real location
+      const coords = await LocationService.getCurrentLocation();
+      
+      const payload = {
+        usuario_id: patientProfile?.name?.toLowerCase().replace(/\s+/g, '_') || 'paciente_001',
+        ecg: 1.0, ppg: 1.0,
+        oxigeno: ox, presion_sistolica: sys, presion_diastolica: dia,
+        frecuencia_cardiaca: hr, temperatura: t || 36.6,
+        glucosa: parseFloat(glucosa) || 90.0,
+        ubicacion_lat: coords.lat, ubicacion_lon: coords.lon,
+        dispositivo_id: 'manual_input', emergencia_detectada: false,
+      };
+
       const response = await apiService.sendVitals(payload);
       setLastResult(response);
       setLastSync(new Date().toLocaleTimeString());
@@ -92,15 +96,16 @@ export const HomeScreen = () => {
   };
 
   const handleManualSOS = async () => {
-    const payload = {
-      usuario_id: patientProfile?.name?.toLowerCase().replace(/\s+/g, '_') || 'paciente_001',
-      ecg: 1.0, ppg: 1.0, oxigeno: 82,
-      presion_sistolica: 210, presion_diastolica: 130,
-      frecuencia_cardiaca: 180, temperatura: parseFloat(temp) || 36.6,
-      ubicacion_lat: 16.8634, ubicacion_lon: -99.8901,
-      dispositivo_id: 'manual_sos', emergencia_detectada: true,
-    };
     try {
+      const coords = await LocationService.getCurrentLocation();
+      const payload = {
+        usuario_id: patientProfile?.name?.toLowerCase().replace(/\s+/g, '_') || 'paciente_001',
+        ecg: 1.0, ppg: 1.0, oxigeno: 82,
+        presion_sistolica: 210, presion_diastolica: 130,
+        frecuencia_cardiaca: 180, temperatura: parseFloat(temp) || 36.6,
+        ubicacion_lat: coords.lat, ubicacion_lon: coords.lon,
+        dispositivo_id: 'manual_sos', emergencia_detectada: true,
+      };
       const response = await apiService.sendVitals(payload);
       setLastResult(response);
       setLastSync(new Date().toLocaleTimeString());
@@ -128,16 +133,12 @@ export const HomeScreen = () => {
 
   return (
     <SafeAreaView style={s.safe}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
           {/* ── HEADER ── */}
           <View style={s.header}>
             <View>
-              <Text style={s.greeting}>{greeting}</Text>
-              <Text style={s.headerSub}>
-                {language === 'en' ? 'Your health monitor' : 'Tu monitor de salud'}
-              </Text>
+              <Text style={s.greeting}>{patientProfile?.name ? patientProfile.name.split(' ')[0] : 'RMHealth'}</Text>
             </View>
             <TouchableOpacity style={s.langBtn} onPress={toggleLanguage}>
               <Text style={s.langText}>{tr('language_switch')}</Text>
@@ -206,7 +207,7 @@ export const HomeScreen = () => {
                 <ActivityIndicator color="#FFF" />
               ) : (
                 <Text style={s.submitText}>
-                  {language === 'en' ? '🔬 ANALYZE WITH AI' : '🔬 ANALIZAR CON IA'}
+                  {language === 'en' ? '🔬 DETECT PATTERNS' : '🔬 DETECTAR PATRONES'}
                 </Text>
               )}
             </TouchableOpacity>
@@ -216,7 +217,7 @@ export const HomeScreen = () => {
           {lastResult && (
             <View style={s.resultCard}>
               <Text style={s.resultTitle}>
-                {language === 'en' ? '🧠 AI Analysis Result' : '🧠 Resultado del Análisis IA'}
+                {language === 'en' ? '🧠 Pattern Detection Report' : '🧠 Reporte de Detección de Patrones'}
               </Text>
 
               {mlTriage && (
@@ -283,7 +284,6 @@ export const HomeScreen = () => {
 
           <View style={{ height: 20 }} />
         </ScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

@@ -100,10 +100,8 @@ export const ProfileScreen = () => {
   }
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={100}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {/* Avatar */}
@@ -183,11 +181,11 @@ export const ProfileScreen = () => {
           </View>
         </View>
 
-        {/* Medical Conditions */}
+        {/* Medical Patterns / Background */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Condiciones Médicas</Text>
+          <Text style={styles.sectionTitle}>Antecedentes de Detección</Text>
           <Text style={styles.conditionNote}>
-            Esta información modifica los umbrales del motor de IA para personalizar tu monitoreo.
+            Esta información optimiza los patrones de detección del motor MDP para personalizar tu monitoreo.
           </Text>
 
           {[
@@ -269,7 +267,7 @@ export const ProfileScreen = () => {
           Cumplimiento: HIPAA §164.312 · NOM-024-SSA3-2012 (COFEPRIS)
         </Text>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 

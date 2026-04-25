@@ -11,8 +11,8 @@ const SCREEN_W = Dimensions.get('window').width;
 
 const TEXTS = {
   es: {
-    title: 'Historial Clínico',
-    subtitle: 'Bitácora de signos vitales por fecha.',
+    title: 'Historial de Detecciones',
+    subtitle: 'Bitácora de patrones detectados por fecha.',
     loading: 'Cargando...',
     empty_title: 'Sin Registros',
     empty_text: 'Aún no has registrado signos vitales.',
@@ -29,8 +29,8 @@ const TEXTS = {
     hr: 'Pulso', bp: 'Presión', glu: 'Glucosa', spo2: 'SpO2',
   },
   en: {
-    title: 'Clinical History',
-    subtitle: 'Vital signs log by date.',
+    title: 'Detection History',
+    subtitle: 'Vital signs patterns log by date.',
     loading: 'Loading...',
     empty_title: 'No Records',
     empty_text: 'No vital signs recorded yet.',

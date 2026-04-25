@@ -1,20 +1,23 @@
 import React, { useState, useRef } from 'react';
 import {
   StyleSheet, View, Text, ScrollView, TextInput,
-  TouchableOpacity, KeyboardAvoidingView, Platform,
-  SafeAreaView, ActivityIndicator,
+  TouchableOpacity, ActivityIndicator, Platform
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { LocalWellnessEngine } from '../services/LocalWellnessEngine';
 
 /**
  * AssistantScreen — RM Coach (Wellness Chat Assistant)
- * Phase 1: 100% local, no internet required.
- * Premium chat UI inspired by modern health apps.
+ * HIGH-END CONFIGURATION for Samsung S23 Ultra.
+ * 
+ * We use manual insets and avoid KeyboardAvoidingView entirely,
+ * relying on Android's 'adjustPan' to slide the whole window.
  */
 export const AssistantScreen = () => {
   const { language } = useLanguage();
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState([
     {
       id: '0',
@@ -43,8 +46,6 @@ export const AssistantScreen = () => {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setThinking(true);
-
-    // Scroll to bottom
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
@@ -72,31 +73,18 @@ export const AssistantScreen = () => {
     }
   };
 
-  const quickActions = language === 'en'
-    ? [
-        { label: '📊 Summary', text: 'summary' },
-        { label: '💊 Meds', text: 'medication log' },
-        { label: '❤️ Heart Rate', text: 'heart rate' },
-        { label: '🩸 Blood Pressure', text: 'blood pressure' },
-      ]
-    : [
-        { label: '📊 Resumen', text: 'resumen' },
-        { label: '💊 Medicinas', text: 'tome mi medicina' },
-        { label: '❤️ Pulso', text: 'pulso' },
-        { label: '🩸 Presión', text: 'presión arterial' },
-      ];
-
   return (
-    <SafeAreaView style={s.safe}>
+    // We manually add bottom padding for the navigation bar using insets.bottom
+    <View style={[s.safe, { paddingBottom: insets.bottom }]}>
       {/* Header */}
-      <View style={s.header}>
+      <View style={[s.header, { paddingTop: insets.top }]}>
         <View style={s.headerAvatar}>
           <Text style={s.avatarText}>🤖</Text>
         </View>
         <View>
           <Text style={s.headerTitle}>RM Coach</Text>
           <Text style={s.headerSub}>
-            {language === 'en' ? 'Wellness Assistant • Local' : 'Asistente de Bienestar • Local'}
+            {language === 'en' ? 'Wellness Assistant' : 'Asistente de Bienestar'}
           </Text>
         </View>
         <View style={s.headerBadge}>
@@ -106,29 +94,13 @@ export const AssistantScreen = () => {
         </View>
       </View>
 
-      {/* Quick Actions */}
-      <View style={s.quickRow}>
-        {quickActions.map((qa, i) => (
-          <TouchableOpacity
-            key={i}
-            style={s.quickBtn}
-            onPress={() => {
-              setInput(qa.text);
-              setTimeout(() => handleSend(), 100);
-            }}
-          >
-            <Text style={s.quickText}>{qa.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Messages */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 100}>
+      <View style={{ flex: 1 }}>
         <ScrollView
           ref={scrollRef}
-          style={s.chatArea}
-          contentContainerStyle={s.chatContent}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+          keyboardShouldPersistTaps="handled"
         >
           {messages.map(msg => (
             <View
@@ -148,13 +120,12 @@ export const AssistantScreen = () => {
             <View style={[s.bubble, s.bubbleBot]}>
               <ActivityIndicator size="small" color={COLORS.primary} />
               <Text style={s.thinkingText}>
-                {language === 'en' ? 'Analyzing...' : 'Analizando...'}
+                {language === 'en' ? 'Detecting patterns...' : 'Detectando patrones...'}
               </Text>
             </View>
           )}
         </ScrollView>
 
-        {/* Input Bar */}
         <View style={s.inputBar}>
           <TextInput
             style={s.input}
@@ -174,56 +145,33 @@ export const AssistantScreen = () => {
             <Text style={s.sendIcon}>➤</Text>
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </View>
+    </View>
   );
 };
 
-// ============================================================
-// STYLES — Premium Chat UI
-// ============================================================
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
-
-  // Header
   header: {
-    flexDirection: 'row', alignItems: 'center', padding: 16,
+    flexDirection: 'row', alignItems: 'center', padding: 12,
     backgroundColor: COLORS.surface, borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
   headerAvatar: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: COLORS.primary + '15', justifyContent: 'center',
-    alignItems: 'center', marginRight: 12,
+    alignItems: 'center', marginRight: 10,
   },
-  avatarText: { fontSize: 24 },
-  headerTitle: { fontSize: 18, fontWeight: '900', color: COLORS.secondary },
-  headerSub: { fontSize: 11, color: '#64748B', fontWeight: '600' },
+  avatarText: { fontSize: 22 },
+  headerTitle: { fontSize: 16, fontWeight: '900', color: COLORS.secondary },
+  headerSub: { fontSize: 10, color: '#64748B', fontWeight: '600' },
   headerBadge: {
     marginLeft: 'auto', backgroundColor: COLORS.success + '15',
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10,
   },
-  headerBadgeText: { fontSize: 10, fontWeight: '700', color: COLORS.success },
-
-  // Quick Actions
-  quickRow: {
-    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8,
-    gap: 6, backgroundColor: COLORS.surface,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  quickBtn: {
-    flex: 1, backgroundColor: COLORS.primary + '10',
-    paddingVertical: 8, borderRadius: 20, alignItems: 'center',
-    borderWidth: 1, borderColor: COLORS.primary + '25',
-  },
-  quickText: { fontSize: 11, fontWeight: '700', color: COLORS.primary },
-
-  // Chat
-  chatArea: { flex: 1 },
-  chatContent: { padding: 16, paddingBottom: 8 },
-
+  headerBadgeText: { fontSize: 9, fontWeight: '700', color: COLORS.success },
   bubble: {
-    maxWidth: '82%', padding: 14, borderRadius: 18, marginBottom: 10,
+    maxWidth: '82%', padding: 12, borderRadius: 16, marginBottom: 8,
     elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 4,
   },
@@ -235,26 +183,24 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.primary, alignSelf: 'flex-end',
     borderBottomRightRadius: 4,
   },
-  bubbleText: { fontSize: 14, lineHeight: 21 },
+  bubbleText: { fontSize: 14, lineHeight: 20 },
   bubbleTextBot: { color: COLORS.text },
   bubbleTextUser: { color: '#FFFFFF' },
-  bubbleTime: { fontSize: 9, marginTop: 6, fontWeight: '600' },
+  bubbleTime: { fontSize: 9, marginTop: 4, fontWeight: '600' },
   timeBot: { color: '#94A3B8' },
   timeUser: { color: 'rgba(255,255,255,0.7)', textAlign: 'right' },
   thinkingText: { fontSize: 12, color: '#94A3B8', marginTop: 6 },
-
-  // Input
   inputBar: {
     flexDirection: 'row', alignItems: 'center',
-    padding: 10, paddingBottom: 14,
+    paddingHorizontal: 12, paddingVertical: 10,
     backgroundColor: COLORS.surface,
     borderTopWidth: 1, borderTopColor: COLORS.border,
   },
   input: {
     flex: 1, backgroundColor: '#F1F5F9', borderRadius: 24,
-    paddingHorizontal: 18, paddingVertical: 12,
+    paddingHorizontal: 16, paddingVertical: 12,
     fontSize: 15, color: COLORS.text, fontWeight: '500',
-    marginRight: 8,
+    marginRight: 10,
   },
   sendBtn: {
     width: 44, height: 44, borderRadius: 22,

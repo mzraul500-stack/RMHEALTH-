@@ -57,13 +57,13 @@ class MedicalEngine:
 
 
     @classmethod
-    def analyze(cls, vitals: VitalsInput, context: Optional[PatientContext] = None) -> AnalysisResult:
+    def detect_patterns(cls, vitals: VitalsInput, context: Optional[PatientContext] = None) -> AnalysisResult:
         """
-        🔥 CORAZÓN DEL SISTEMA: Módulo de Juicio Crítico (MJC)
-        Analiza signos vitales con contexto completo:
+        🔥 CORAZÓN DEL SISTEMA: Motor de Detección de Patrones (MDP)
+        Identifica patrones en signos vitales con contexto completo:
         1. Valores actuales
         2. Tendencia temporal
-        3. Historial médico del usuario (Multiplicadores)
+        3. Historial del usuario (Multiplicadores)
         4. Patrones de riesgo conocidos (Caídas/Inconsciencia)
         """
         try:
@@ -120,13 +120,13 @@ class MedicalEngine:
             )
 
         except Exception as e:
-            logger.error(f"Error en MJC: {e}")
+            logger.error(f"Error en MDP: {e}")
             return AnalysisResult(
                 emergencia_detectada=True,
                 nivel_criticidad="CRITICAL",
                 score_riesgo=100.0,
-                factores_riesgo=["Falla en Motor de Juicio Crítico"],
-                recomendacion="REQUERIDA ATENCIÓN INMEDIATA - Error Interno"
+                factores_riesgo=["Falla en Motor de Detección de Patrones"],
+                recomendacion="REQUERIDA COORDINACIÓN INMEDIATA - Error Interno"
             )
 
     @staticmethod
@@ -194,7 +194,7 @@ class MedicalEngine:
         elif glucosa < 70:
             # Level 1 Hypoglycemia (ADA) — Alert value
             score += 20
-            factores.append(f"Hipoglucemia ({glucosa} mg/dL) — ADA Level 1: alerta clínica")
+            factores.append(f"Hipoglucemia ({glucosa} mg/dL) — ADA Level 1: alerta de coordinación")
         elif glucosa > 300:
             # Severe hyperglycemia — risk of DKA/HHS
             score += 35

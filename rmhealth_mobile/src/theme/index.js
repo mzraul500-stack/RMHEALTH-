@@ -4,12 +4,12 @@ export const COLORS = {
   secondary: '#1B4F72',    // Azul médico profundo
   background: '#F8FAFC',   // Fondo claro (gris azulado muy suave)
   surface: '#FFFFFF',      // Tarjetas blancas
-  text: '#334155',         // Texto oscuro para lectura fácil
-  textHighlight: '#47c8c2',// Acentos en teal
-  error: '#EF4444',        // Rojo médico estándar
-  success: '#10B981',      // Verde saludable
+  text: '#000000',         // Negro puro
+  textHighlight: '#000000',
+  error: '#EF4444',        
+  success: '#10B981',      
   white: '#FFFFFF',
-  border: '#E2E8F0',       // Bordes suaves
+  border: '#000000',       
 };
 
 export const SPACING = {

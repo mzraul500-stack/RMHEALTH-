@@ -33,11 +33,13 @@ try:
     # When running from project root (local dev)
     from backend.services.medical_engine import MedicalEngine, VitalsInput, PatientContext
     from backend.services.hospital_gateway import HospitalGateway
+    from backend.services.notification_service import NotificationService
     from backend.ai_engine import classify_triage
 except ImportError:
     # When running from backend/ directory (Cloud Run)
     from services.medical_engine import MedicalEngine, VitalsInput, PatientContext
     from services.hospital_gateway import HospitalGateway
+    from services.notification_service import NotificationService
     from ai_engine import classify_triage
 
 # Setup Logging
@@ -463,7 +465,7 @@ async def receive_vital_signs(data: VitalSigns, user=Depends(verify_token)):
 
         # 3. Clinical override analysis with patient context
         real_context = PatientContext(**patient_context_kwargs)
-        analysis = MedicalEngine.analyze(engine_input, real_context)
+        analysis = MedicalEngine.detect_patterns(engine_input, real_context)
 
         # 4. Reconcile ML prediction with heuristic analysis
         #    Use the MORE SEVERE of the two assessments (safety-first)
@@ -498,6 +500,22 @@ async def receive_vital_signs(data: VitalSigns, user=Depends(verify_token)):
                 f"{data.usuario_id} (ML={ml_result['level']}, "
                 f"confidence={ml_result['confidence']:.2f})"
             )
+
+            # 6. DISPATCH EMERGENCY NOTIFICATIONS (SMS + Hospital)
+            try:
+                notification_result = NotificationService.dispatch_emergency_protocol(
+                    patient_data={
+                        "nombre_completo": patient_context_kwargs.get("nombre_completo", "Paciente RMHealth"),
+                        "contacto_emergencia_nombre": patient_context_kwargs.get("contacto_emergencia_nombre", ""),
+                        "contacto_emergencia_tel": patient_context_kwargs.get("contacto_emergencia_tel", ""),
+                        "lat": data.ubicacion_lat,
+                        "lon": data.ubicacion_lon,
+                    },
+                    hospital_info=hospital.dict(),
+                )
+                logger.info(f"Notification dispatch result: {notification_result}")
+            except Exception as notif_err:
+                logger.error(f"Notification dispatch failed (non-blocking): {notif_err}")
 
         # 6. OPTIONAL: Persist to database (non-blocking)
         if db_available and conn:

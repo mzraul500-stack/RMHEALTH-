@@ -105,8 +105,8 @@ El uso de esta aplicación implica la aceptación plena de los presentes términ
     vital_diastolic: 'Presión Diastólica (mmHg)',
     vital_glucose: 'Glucosa (mg/dL)',
     vital_temperature: 'Temperatura (°C)',
-    vital_submit: 'Enviar Signos Vitales',
-    vital_result: 'Resultado del Análisis',
+    vital_submit: 'Detectar Patrones',
+    vital_result: 'Reporte de Detección de Patrones',
 
     // === NAVIGATION ===
     nav_home: 'Inicio',

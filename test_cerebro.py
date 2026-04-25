@@ -81,7 +81,7 @@ def test_engine():
 
     for scenario in scenarios:
         print(f"{scenario['name']}")
-        result = MedicalEngine.analyze(scenario['vitals'], scenario['context'])
+        result = MedicalEngine.detect_patterns(scenario['vitals'], scenario['context'])
         print(f"  - Risk Score: {result.score_riesgo:.1f}")
         print(f"  - Severity: {result.nivel_criticidad}")
         print(f"  - Factors: {', '.join(result.factores_riesgo)}")
