@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Component } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar, ActivityIndicator, View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
@@ -12,6 +12,7 @@ import { DeviceSettingsScreen } from './src/screens/DeviceSettingsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { AssistantScreen } from './src/features/assistant/screens/AssistantScreen';
+import { PreventiveAlertsScreen } from './src/screens/PreventiveAlertsScreen';
 
 // Legal / Compliance Screens
 import { PrivacyNoticeScreen, isPrivacyAccepted } from './src/screens/legal/PrivacyNoticeScreen';
@@ -33,7 +34,7 @@ const TAB_ICONS = {
   Home:     { active: '🏠', inactive: '🏡', label_es: 'Inicio',       label_en: 'Home' },
   Coach:    { active: '🤖', inactive: '💬', label_es: 'Coach',        label_en: 'Coach' },
   History:  { active: '📅', inactive: '📆', label_es: 'Historial',    label_en: 'History' },
-  Meds:     { active: '💊', inactive: '💉', label_es: 'Medicinas',    label_en: 'Meds' },
+  Meds:     { active: '💊', inactive: '💊', label_es: 'Medicinas',    label_en: 'Meds' },
   More:     { active: '⚙️', inactive: '⚙️', label_es: 'Más',          label_en: 'More' },
 };
 
@@ -51,6 +52,7 @@ function MoreStack() {
     >
       <Stack.Screen name="MoreMenu" component={MoreMenuScreen} options={{ title: 'Configuración' }} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Perfil' }} />
+      <Stack.Screen name="PreventiveAlerts" component={PreventiveAlertsScreen} options={{ title: 'Alertas Preventivas', headerShown: false }} />
       <Stack.Screen name="DeviceSettings" component={DeviceSettingsScreen} options={{ title: 'Dispositivos' }} />
       <Stack.Screen name="About" component={AboutScreen} options={{ title: 'RmHealth' }} />
     </Stack.Navigator>
@@ -61,6 +63,7 @@ function MoreStack() {
 function MoreMenuScreen({ navigation }) {
   const menuItems = [
     { icon: '👤', label: 'Mi Perfil', screen: 'Profile' },
+    { icon: '🛡️', label: 'Alertas Preventivas', screen: 'PreventiveAlerts' },
     { icon: '⌚', label: 'Dispositivos / Relojes', screen: 'DeviceSettings' },
     { icon: 'ℹ️', label: 'Acerca de RmHealth', screen: 'About' },
   ];
@@ -198,9 +201,7 @@ function LegalGate({ children }) {
   return children;
 }
 
-// ============================================================
-// APP ROOT — Premium Bottom Tab Navigation
-// ============================================================
+
 export default function App() {
   return (
     <ErrorBoundary>

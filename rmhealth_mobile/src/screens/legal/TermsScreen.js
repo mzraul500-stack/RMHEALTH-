@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { logAuditEvent, AUDIT_EVENTS } from '../../services/AuditLogService';
@@ -23,7 +23,7 @@ export function TermsScreen({ onAccept }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <TouchableOpacity style={styles.langButton} onPress={toggleLanguage}>
           <Text style={styles.langText}>{tr('language_switch')}</Text>
@@ -57,7 +57,7 @@ export function TermsScreen({ onAccept }) {
       <TouchableOpacity style={styles.acceptButton} onPress={handleAccept}>
         <Text style={styles.acceptText}>{tr('terms_accept')}</Text>
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   fdaText: { fontSize: 13, fontWeight: '700', color: '#92400E', fontStyle: 'italic' },
   fdaRef: { fontSize: 11, color: '#B45309', marginTop: 2 },
   acceptButton: {
-    margin: SPACING.md, padding: 16, borderRadius: 14,
+    margin: SPACING.md, marginBottom: 30, padding: 16, borderRadius: 14,
     backgroundColor: COLORS.primary, alignItems: 'center',
     elevation: 4,
   },

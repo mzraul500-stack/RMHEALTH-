@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gcloud run services list *)",
+      "Bash(gcloud services enable *)",
+      "Bash(gcloud secrets *)",
+      "Bash(gcloud run services update *)"
+    ]
+  }
+}

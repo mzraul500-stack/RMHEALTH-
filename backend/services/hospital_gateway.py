@@ -1,11 +1,18 @@
 import logging
 import uuid
 import math
+import random
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
 logger = logging.getLogger("RMHealth.HospitalGateway")
+
+# Demo patient names for FHIR bundle fallback
+DEMO_NAMES = [
+    "María González", "Carlos Mendoza", "Rosa Hernández",
+    "José Martínez", "Ana Ramírez", "Luis Pérez",
+]
 
 class HospitalRoutingInfo(BaseModel):
     hospital_id: str
@@ -163,11 +170,15 @@ class HospitalGateway:
         )
 
     @staticmethod
-    def generate_fhir_r4_bundle(patient_id: str, analysis: Dict[str, Any], vitals: Dict[str, Any]) -> Dict[str, Any]:
-        """Generates a compliant FHIR R4 Bundle for modern hospitals."""
+    def generate_fhir_r4_bundle(patient_id: str, analysis: Dict[str, Any], vitals: Dict[str, Any], patient_profile: Dict[str, Any]) -> Dict[str, Any]:
+        """Generates a compliant FHIR R4 Bundle with FULL clinical profile."""
         bundle_id = str(uuid.uuid4())
         timestamp = datetime.now().isoformat()
-
+        
+        # Derived clinical data
+        age = patient_profile.get("edad", 0)
+        birth_year = datetime.now().year - age
+        
         bundle = {
             "resourceType": "Bundle",
             "id": bundle_id,
@@ -192,7 +203,25 @@ class HospitalGateway:
                         "resourceType": "Patient",
                         "id": patient_id,
                         "active": True,
-                        "name": [{"text": analysis.get("paciente_context", {}).get("nombre_completo", "Paciente Desconocido")}]
+                        "name": [{"text": patient_profile.get("nombre_completo", "Unknown")}],
+                        "birthDate": f"{birth_year}-01-01",
+                        "extension": [
+                            {
+                                "url": "http://hl7.org/fhir/StructureDefinition/patient-bloodType",
+                                "valueString": patient_profile.get("tipo_sangre", "Unknown")
+                            }
+                        ]
+                    }
+                },
+                {
+                    "fullUrl": "urn:uuid:allergies",
+                    "resource": {
+                        "resourceType": "List",
+                        "status": "current",
+                        "mode": "working",
+                        "title": "Clinical Alerts & Allergies",
+                        "subject": {"reference": f"Patient/{patient_id}"},
+                        "note": [{"text": f"Allergies: {', '.join(patient_profile.get('alergias', [])) or 'None reported'}"}]
                     }
                 },
                 {

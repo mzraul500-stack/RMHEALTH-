@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert,
+  TextInput, Alert, SafeAreaView, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -42,7 +42,8 @@ export function InformedConsentScreen({ onAccept }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+    <KeyboardAvoidingView style={{flex: 1}} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <TouchableOpacity style={styles.langButton} onPress={toggleLanguage}>
           <Text style={styles.langText}>{tr('language_switch')}</Text>
@@ -100,7 +101,8 @@ export function InformedConsentScreen({ onAccept }) {
       >
         <Text style={styles.signText}>{tr('consent_accept')}</Text>
       </TouchableOpacity>
-    </View>
+    </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -175,7 +177,7 @@ const styles = StyleSheet.create({
   checkmark: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
   checkboxLabel: { flex: 1, fontSize: 14, color: COLORS.text, lineHeight: 20 },
   signButton: {
-    margin: SPACING.md, padding: 16, borderRadius: 14,
+    margin: SPACING.md, marginBottom: 30, padding: 16, borderRadius: 14,
     backgroundColor: COLORS.primary, alignItems: 'center',
     elevation: 4,
   },

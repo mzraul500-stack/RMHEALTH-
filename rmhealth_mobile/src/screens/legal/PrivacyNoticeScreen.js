@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, BackHandler,
+  Alert, BackHandler, SafeAreaView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -39,7 +39,7 @@ export function PrivacyNoticeScreen({ onAccept }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Language Toggle */}
         <TouchableOpacity style={styles.langButton} onPress={toggleLanguage}>
@@ -80,7 +80,7 @@ export function PrivacyNoticeScreen({ onAccept }) {
           <Text style={styles.acceptText}>{tr('privacy_accept')}</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   fdaText: { fontSize: 13, fontWeight: '700', color: '#92400E', fontStyle: 'italic' },
   fdaRef: { fontSize: 11, color: '#B45309', marginTop: 2 },
   buttonRow: {
-    flexDirection: 'row', padding: SPACING.md,
+    flexDirection: 'row', padding: SPACING.md, paddingBottom: 30,
     borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.background,
   },
   declineButton: {

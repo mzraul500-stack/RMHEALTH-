@@ -100,10 +100,12 @@ export const ProfileScreen = () => {
   }
 
   return (
-    <View
+    <KeyboardAvoidingView
       style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={80}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
         {/* Avatar */}
         <View style={styles.avatarContainer}>
           <View style={styles.avatar}>
@@ -267,7 +269,7 @@ export const ProfileScreen = () => {
           Cumplimiento: HIPAA §164.312 · NOM-024-SSA3-2012 (COFEPRIS)
         </Text>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 

@@ -45,55 +45,76 @@ export const HomeScreen = () => {
     loadProfile();
   }, []);
 
-  const handleSendVitals = async () => {
-    const hr = parseInt(heartRate, 10);
-    const ox = parseInt(spo2, 10);
-    const sys = parseInt(bpSys, 10);
-    const dia = parseInt(bpDia, 10);
-    const t = parseFloat(temp);
+    const [statusMsg, setStatusMsg] = useState('');
 
-    if (isNaN(hr) || isNaN(ox) || isNaN(sys) || isNaN(dia)) {
-      Alert.alert(
-        language === 'en' ? 'Incomplete Data' : 'Datos incompletos',
-        language === 'en'
-          ? 'Enter at least: heart rate, oxygen, systolic and diastolic pressure.'
-          : 'Escribe al menos: pulso, oxígeno, presión sistólica y diastólica.'
-      );
-      return;
-    }
+    const handleSendVitals = async () => {
+      // ... (previous logic for parsing)
+      const hr = parseInt(heartRate, 10);
+      const ox = parseInt(spo2, 10);
+      const sys = parseInt(bpSys, 10);
+      const dia = parseInt(bpDia, 10);
+      const t = parseFloat(temp);
 
-    setSending(true);
-    try {
-      // 1. Get real location
-      const coords = await LocationService.getCurrentLocation();
-      
-      const payload = {
-        usuario_id: patientProfile?.name?.toLowerCase().replace(/\s+/g, '_') || 'paciente_001',
-        ecg: 1.0, ppg: 1.0,
-        oxigeno: ox, presion_sistolica: sys, presion_diastolica: dia,
-        frecuencia_cardiaca: hr, temperatura: t || 36.6,
-        glucosa: parseFloat(glucosa) || 90.0,
-        ubicacion_lat: coords.lat, ubicacion_lon: coords.lon,
-        dispositivo_id: 'manual_input', emergencia_detectada: false,
-      };
+      if (isNaN(hr) || isNaN(ox) || isNaN(sys) || isNaN(dia)) {
+        Alert.alert(
+          language === 'en' ? 'Incomplete Data' : 'Datos incompletos',
+          language === 'en'
+            ? 'Enter at least: heart rate, oxygen, systolic and diastolic pressure.'
+            : 'Escribe al menos: pulso, oxígeno, presión sistólica y diastólica.'
+        );
+        return;
+      }
 
-      const response = await apiService.sendVitals(payload);
-      setLastResult(response);
-      setLastSync(new Date().toLocaleTimeString());
-      await LocalHistoryService.saveRecord(response, payload);
-    } catch (err) {
-      const isOffline = err.message?.includes('Network') || err.message?.includes('fetch');
-      Alert.alert(
-        isOffline
-          ? (language === 'en' ? 'No Internet' : 'Sin conexión')
-          : (language === 'en' ? 'Error' : 'Error de conexión'),
-        isOffline
-          ? (language === 'en' ? 'Check your internet.' : 'Revisa tu conexión.')
-          : (language === 'en' ? 'Could not reach server.' : 'No se pudo contactar al servidor.')
-      );
-      setLastResult(null);
-    } finally { setSending(false); }
-  };
+      setSending(true);
+      setStatusMsg(language === 'en' ? 'GETTING LOCATION...' : 'OBTENIENDO UBICACIÓN...');
+      try {
+        // 1. Get real location (now with 5s timeout)
+        const coords = await LocationService.getCurrentLocation();
+        
+        setStatusMsg(language === 'en' ? 'ANALYZING DATA...' : 'ANALIZANDO DATOS...');
+        const payload = {
+          usuario_id: patientProfile?.name?.toLowerCase().replace(/\s+/g, '_') || 'paciente_001',
+          ecg: 1.0, ppg: 1.0,
+          oxigeno: ox, presion_sistolica: sys, presion_diastolica: dia,
+          frecuencia_cardiaca: hr, temperatura: t || 36.6,
+          glucosa: parseFloat(glucosa) || 90.0,
+          ubicacion_lat: coords.lat, ubicacion_lon: coords.lon,
+          dispositivo_id: 'manual_input', emergencia_detectada: false,
+          // FULL CLINICAL CONTEXT FOR FDA/COFEPRIS COMPLIANCE
+          patient_context: {
+            nombre_completo: patientProfile?.name || 'Usuario RMHealth',
+            edad: parseInt(patientProfile?.age) || 30,
+            diabetico: !!patientProfile?.conditions?.diabetico,
+            hipertenso: !!patientProfile?.conditions?.hipertenso,
+            cardiopata: !!patientProfile?.conditions?.cardiopata,
+            tipo_sangre: patientProfile?.blood || 'No especificado',
+            contacto_emergencia_nombre: patientProfile?.contactName || '',
+            contacto_emergencia_tel: patientProfile?.contactPhone || '',
+            alergias: patientProfile?.allergies ? patientProfile.allergies.split(',').map(a => a.trim()) : []
+          }
+        };
+
+        const response = await apiService.sendVitals(payload);
+        setLastResult(response);
+        setLastSync(new Date().toLocaleTimeString());
+        await LocalHistoryService.saveRecord(response, payload);
+      } catch (err) {
+        // ... (existing catch logic)
+        const isOffline = err.message?.includes('Network') || err.message?.includes('fetch');
+        Alert.alert(
+          isOffline
+            ? (language === 'en' ? 'No Internet' : 'Sin conexión')
+            : (language === 'en' ? 'Error' : 'Error de conexión'),
+          isOffline
+            ? (language === 'en' ? 'Check your internet.' : 'Revisa tu conexión.')
+            : (language === 'en' ? 'Could not reach server.' : 'No se pudo contactar al servidor.')
+        );
+        setLastResult(null);
+      } finally { 
+        setSending(false); 
+        setStatusMsg('');
+      }
+    };
 
   const handleManualSOS = async () => {
     try {
@@ -105,6 +126,18 @@ export const HomeScreen = () => {
         frecuencia_cardiaca: 180, temperatura: parseFloat(temp) || 36.6,
         ubicacion_lat: coords.lat, ubicacion_lon: coords.lon,
         dispositivo_id: 'manual_sos', emergencia_detectada: true,
+        // FULL CLINICAL CONTEXT FOR FDA/COFEPRIS COMPLIANCE
+        patient_context: {
+          nombre_completo: patientProfile?.name || 'Usuario RMHealth',
+          edad: parseInt(patientProfile?.age) || 30,
+          diabetico: !!patientProfile?.conditions?.diabetico,
+          hipertenso: !!patientProfile?.conditions?.hipertenso,
+          cardiopata: !!patientProfile?.conditions?.cardiopata,
+          tipo_sangre: patientProfile?.blood || 'No especificado',
+          contacto_emergencia_nombre: patientProfile?.contactName || '',
+          contacto_emergencia_tel: patientProfile?.contactPhone || '',
+          alergias: patientProfile?.allergies ? patientProfile.allergies.split(',').map(a => a.trim()) : []
+        }
       };
       const response = await apiService.sendVitals(payload);
       setLastResult(response);
@@ -203,13 +236,11 @@ export const HomeScreen = () => {
               disabled={sending}
               activeOpacity={0.8}
             >
-              {sending ? (
-                <ActivityIndicator color="#FFF" />
-              ) : (
-                <Text style={s.submitText}>
-                  {language === 'en' ? '🔬 DETECT PATTERNS' : '🔬 DETECTAR PATRONES'}
-                </Text>
-              )}
+              <Text style={s.submitText}>
+                {sending 
+                  ? statusMsg 
+                  : (language === 'en' ? '🔬 DETECT PATTERNS' : '🔬 DETECTAR PATRONES')}
+              </Text>
             </TouchableOpacity>
           </View>
 

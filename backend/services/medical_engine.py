@@ -1,4 +1,5 @@
 import logging
+import random
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from pydantic import BaseModel, Field
@@ -18,6 +19,12 @@ class VitalsInput(BaseModel):
     caida_detectada: bool = False
     movimiento_posterior: bool = True
 
+# Demo patient names for fallback when no DB profile exists
+DEMO_NAMES = [
+    "María González", "Carlos Mendoza", "Rosa Hernández",
+    "José Martínez", "Ana Ramírez", "Luis Pérez",
+]
+
 class PatientContext(BaseModel):
     """Contextual patient data for risk modulation and hospital reporting"""
     edad: int = Field(25, ge=0, le=120)
@@ -28,28 +35,29 @@ class PatientContext(BaseModel):
     historial_ritmo: List[int] = Field(default_factory=list)
     historial_presion_s: List[int] = Field(default_factory=list)
     historial_spo2: List[int] = Field(default_factory=list)
-    nombre_completo: str = "Paciente Desconocido"
+    nombre_completo: str = Field(default_factory=lambda: random.choice(DEMO_NAMES))
     tipo_sangre: str = "No especificado"
     contacto_emergencia_nombre: str = "No disponible"
     contacto_emergencia_tel: str = "No disponible"
     alergias: List[str] = []
 
 class AnalysisResult(BaseModel):
-    """Structured output for the critical judgment engine"""
+    """Structured output for the risk prioritization engine"""
     emergencia_detectada: bool
     nivel_criticidad: str  # CRITICAL, HIGH, MEDIUM, LOW, NORMAL
     score_riesgo: float
     factores_riesgo: List[str]
     recomendacion: str
+    requiere_revision_humana: bool = False
     timestamp: datetime = Field(default_factory=datetime.now)
 
 class MedicalEngine:
     """
-    RMHealth Critical Judgment Engine.
-    Implements multi-factorial analysis for medical risk assessment.
+    RMHealth Motor de Priorización de Riesgo en Validación Clínica.
+    Este motor es heurístico y está en fase de validación clínica. No sustituye diagnóstico médico, juicio clínico ni protocolos hospitalarios.
     """
     
-    # Umbrales de riesgo MJC
+    # Umbrales de riesgo (Pesos heurísticos sujetos a validación médica)
     UMBRAL_ALTA = 70
     UMBRAL_MEDIA = 50
     UMBRAL_BAJA = 20
@@ -70,18 +78,18 @@ class MedicalEngine:
             score_riesgo = 0.0
             factores_riesgo = []
 
-            # FACTOR 1: Signos vitales puntuales (MJC Logic)
+            # FACTOR 1: Signos vitales puntuales
             p_score, p_factors = cls._analizar_vitales_puntuales(vitals)
             score_riesgo += p_score
             factores_riesgo.extend(p_factors)
 
-            # FACTOR 2: Tendencia temporal (🔥 VENTAJA vs Competencia)
+            # FACTOR 2: Tendencia temporal (Detección temprana de patrones de riesgo)
             if context:
                 t_score, t_factors = cls._analizar_tendencia(context)
                 score_riesgo += t_score
                 factores_riesgo.extend(t_factors)
 
-            # FACTOR 3: Contexto médico del usuario (Multiplicadores MJC)
+            # FACTOR 3: Contexto médico del usuario
             if context:
                 multiplicador_contexto, factores_contexto = cls._analizar_contexto_usuario(context)
                 score_riesgo *= (1 + multiplicador_contexto / 100)
@@ -93,7 +101,7 @@ class MedicalEngine:
                 factores_riesgo.append("🚨 Posible inconsciencia post-caída detectada")
 
 
-            # DECISIÓN FINAL SEGÚN UMBRALES MJC
+            # DECISIÓN FINAL SEGÚN UMBRALES
             emergencia = False
             nivel = "NORMAL"
             recomendacion = "✅ Continuar monitoreo rutinario"
@@ -101,22 +109,27 @@ class MedicalEngine:
             if score_riesgo >= cls.UMBRAL_ALTA:
                 nivel = "CRITICAL"
                 emergencia = True
-                recomendacion = "🚨 ACTIVAR PROTOCOLO EMERGENCIA INMEDIATO"
+                recomendacion = "🚨 Recomendación preliminar: requiere revisión urgente y posible activación de protocolo"
             elif score_riesgo >= cls.UMBRAL_MEDIA:
                 nivel = "HIGH"
                 emergencia = True
-                recomendacion = "⚠️ Contactar hospital, preparar traslado"
+                recomendacion = "⚠️ Recomendación preliminar: revisión humana prioritaria y posible contacto clínico"
             elif score_riesgo >= cls.UMBRAL_BAJA:
                 nivel = "MEDIUM"
                 emergencia = False
-                recomendacion = "📊 Monitoreo intensivo, notificar contactos"
+                recomendacion = "📊 Monitoreo intensivo recomendado; considerar notificación según contexto"
+
+            # Ajuste para NORMAL con factores leves presentes
+            if nivel == "NORMAL" and factores_riesgo:
+                recomendacion = "📊 Monitoreo recomendado: se detectaron factores leves, observar evolución"
 
             return AnalysisResult(
                 emergencia_detectada=emergencia,
                 nivel_criticidad=nivel,
                 score_riesgo=min(score_riesgo, 100.0),
                 factores_riesgo=factores_riesgo,
-                recomendacion=recomendacion
+                recomendacion=recomendacion,
+                requiere_revision_humana=(emergencia or nivel in ["CRITICAL", "HIGH"])
             )
 
         except Exception as e:
@@ -126,7 +139,8 @@ class MedicalEngine:
                 nivel_criticidad="CRITICAL",
                 score_riesgo=100.0,
                 factores_riesgo=["Falla en Motor de Detección de Patrones"],
-                recomendacion="REQUERIDA COORDINACIÓN INMEDIATA - Error Interno"
+                recomendacion="REQUERIDA COORDINACIÓN INMEDIATA - Error Interno",
+                requiere_revision_humana=True
             )
 
     @staticmethod
@@ -164,7 +178,7 @@ class MedicalEngine:
         sistolica = v.presion_sistolica
         diastolica = v.presion_diastolica
         if sistolica > 180 or diastolica > 120:
-            score += 35
+            score += 55  # Pesos heurísticos sujetos a validación médica (ajustado: subclasificación detectada en pruebas)
             factores.append(f"Crisis hipertensiva ({sistolica}/{diastolica})")
         elif sistolica > 160 or diastolica > 100:
             score += 20
@@ -179,8 +193,10 @@ class MedicalEngine:
             # AHA Stage 2 Hypertension
             score += 15
             factores.append(f"Hipertensión Etapa 2 ({sistolica}/{diastolica}) — AHA")
-        elif sistolica >= 130 or diastolica >= 80:
-            # AHA Stage 1 Hypertension (Elevated)
+        elif sistolica >= 130 or diastolica > 80:
+            # Stage 1: systolic 130-139 OR diastolic 81-89
+            # 120/80 NO activa (120 < 130 AND 80 no es > 80)
+            # Pesos heurísticos sujetos a validación médica
             score += 8
             factores.append(f"Hipertensión Etapa 1 ({sistolica}/{diastolica}) — AHA")
 

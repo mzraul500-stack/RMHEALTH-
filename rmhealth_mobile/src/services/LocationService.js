@@ -46,16 +46,27 @@ export const LocationService = {
    */
   async getCurrentLocation() {
     try {
+      // Try to get a fast last known position first
+      const lastKnown = await Location.getLastKnownPositionAsync();
+      
+      // Request a fresh one but with a strict timeout of 5 seconds
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
+        timeout: 5000,
       });
+
       return {
-        lat: location.coords.latitude,
-        lon: location.coords.longitude,
+        lat: location?.coords?.latitude || lastKnown?.coords?.latitude || 16.8634,
+        lon: location?.coords?.longitude || lastKnown?.coords?.longitude || -99.8901,
       };
     } catch (e) {
-      console.warn('[LocationService] Error getting position:', e);
-      return { lat: 16.8634, lon: -99.8901 }; // Fallback Acapulco
+      console.warn('[LocationService] Timeout or error getting position, using fallback:', e);
+      // Try one last time for any known position
+      const fallback = await Location.getLastKnownPositionAsync();
+      return { 
+        lat: fallback?.coords?.latitude || 16.8634, 
+        lon: fallback?.coords?.longitude || -99.8901 
+      };
     }
   },
 

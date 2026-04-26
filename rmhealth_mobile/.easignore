@@ -1,0 +1,26 @@
+# EAS Build Ignore - Reduce upload size
+# Node modules are reinstalled on the build server
+node_modules/
+
+# Android build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+
+# iOS
+ios/
+
+# Dist / export cache
+dist/
+
+# Tests and docs
+*.test.js
+*.spec.js
+
+# Dev files
+.expo/
+.git/
+
+# Large media not needed for build
+*.mp4
+*.mov

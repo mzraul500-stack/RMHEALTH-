@@ -12,6 +12,7 @@ import datetime
 import json
 import logging
 import os
+import random
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from typing import Optional
@@ -34,12 +35,14 @@ try:
     from backend.services.medical_engine import MedicalEngine, VitalsInput, PatientContext
     from backend.services.hospital_gateway import HospitalGateway
     from backend.services.notification_service import NotificationService
+    from backend.services.preventive_alerts import PreventiveAlertService, VitalReading, PreventiveAlert
     from backend.ai_engine import classify_triage
 except ImportError:
     # When running from backend/ directory (Cloud Run)
     from services.medical_engine import MedicalEngine, VitalsInput, PatientContext
     from services.hospital_gateway import HospitalGateway
     from services.notification_service import NotificationService
+    from services.preventive_alerts import PreventiveAlertService, VitalReading, PreventiveAlert
     from ai_engine import classify_triage
 
 # Setup Logging
@@ -48,6 +51,36 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
 )
 logger = logging.getLogger("RMHealth.API")
+
+# ── Demo patient profiles for realistic testing ──
+DEMO_PATIENTS = [
+    {"nombre": "María González", "edad": 68},
+    {"nombre": "Carlos Mendoza", "edad": 72},
+    {"nombre": "Rosa Hernández", "edad": 65},
+    {"nombre": "José Martínez", "edad": 71},
+    {"nombre": "Ana Ramírez", "edad": 66},
+    {"nombre": "Luis Pérez", "edad": 74},
+]
+
+
+def classify_emergency_label(analysis) -> str:
+    """Map ML/heuristic analysis to patient-friendly emergency type label.
+
+    Returns one of four standard labels based on detected risk factors.
+    """
+    factors_text = " ".join(analysis.factores_riesgo).lower()
+
+    if any(kw in factors_text for kw in [
+        "taquicardia", "bradicardia", "cardíaco", "cardiopat"
+    ]):
+        return "Patrón Cardíaco Inusual"
+    if any(kw in factors_text for kw in [
+        "hipertensiva", "hipotensión", "presión", "hipertensión"
+    ]):
+        return "Presión Arterial Elevada"
+    if analysis.nivel_criticidad == "CRITICAL":
+        return "Respuesta Inmediata Requerida"
+    return "Monitoreo Intensivo"
 
 
 # Security configuration
@@ -75,14 +108,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Azure configuration
-AZURE_KEY_VAULT_URL = os.getenv(
-    "AZURE_KEY_VAULT_URL", "https://rmhealth-vault.vault.azure.net/"
-)
-AZURE_SERVICE_BUS_NAMESPACE = os.getenv(
-    "AZURE_SERVICE_BUS_NAMESPACE", "rmhealth-servicebus"
-)
-AZURE_MAPS_KEY = os.getenv("AZURE_MAPS_KEY", "")
+# --- Validation Error Handler (logs exact field that failed) ---
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    errors = exc.errors()
+    logger.error(f"VALIDATION ERROR from {request.client.host}: {errors}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": errors, "body_received": str(exc.body)[:500]}
+    )
 
 
 # --- MANDATORY SECRETS (fail-fast if missing) ---
@@ -129,10 +166,12 @@ def get_db_connection():
         db_host = os.environ.get("DB_HOST", "127.0.0.1")
         
         # Connect to DB - Handle Unix Sockets for Cloud Run
+        # Added connect_timeout=2 to prevent hanging when DB is unreachable
         connect_args = {
             "dbname": db_name,
             "user": db_user,
-            "password": db_pass
+            "password": db_pass,
+            "connect_timeout": 2
         }
         
         if db_host.startswith('/'):
@@ -175,11 +214,34 @@ def get_db_connection():
         """
         )
 
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS preventive_alerts (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id TEXT NOT NULL,
+                metric TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                title TEXT NOT NULL,
+                message TEXT NOT NULL,
+                recommendation TEXT NOT NULL,
+                baseline_value REAL DEFAULT 0,
+                current_value REAL DEFAULT 0,
+                delta REAL DEFAULT 0,
+                data_window TEXT NOT NULL,
+                source TEXT DEFAULT 'unknown',
+                requires_human_review BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                acknowledged_at TIMESTAMP WITH TIME ZONE NULL
+            )
+        """
+        )
+
         conn.commit()
         # Return DictCursor so it acts like sqlite3.Row mapping
         cursor.close()
         return psycopg2.connect(
-            dbname=db_name, user=db_user, password=db_pass, host=db_host, cursor_factory=RealDictCursor
+            dbname=db_name, user=db_user, password=db_pass, host=db_host, 
+            cursor_factory=RealDictCursor, connect_timeout=2
         )
     except Exception as e:
         logging.error(f"Error connecting to PostgreSQL: {e}")
@@ -191,26 +253,26 @@ def get_db_connection():
 class VitalSigns(BaseModel):
     """Medical vital signs data model"""
     usuario_id: str = Field(..., description="Unique user ID")
-    ecg: float = Field(..., ge=0.0, le=2.0,
-                       description="Electrocardiogram (0.0-2.0)")
-    ppg: float = Field(..., ge=0.0, le=2.0,
-                       description="Photoplethysmography (0.0-2.0)")
-    oxigeno: int = Field(..., ge=70, le=100,
+    ecg: float = Field(default=1.0, ge=0.0, le=10.0,
+                       description="Electrocardiogram (0.0-10.0)")
+    ppg: float = Field(default=1.0, ge=0.0, le=10.0,
+                       description="Photoplethysmography (0.0-10.0)")
+    oxigeno: int = Field(..., ge=50, le=100,
                          description="Oxygen saturation (%)")
     presion_sistolica: int = Field(
-        ..., ge=80, le=250, description="Systolic pressure (mmHg)"
+        ..., ge=60, le=300, description="Systolic pressure (mmHg)"
     )
     presion_diastolica: int = Field(
-        ..., ge=50, le=150, description="Diastolic pressure (mmHg)"
+        ..., ge=30, le=200, description="Diastolic pressure (mmHg)"
     )
     frecuencia_cardiaca: int = Field(
-        ..., ge=40, le=200, description="Heart rate (bpm)"
+        ..., ge=20, le=250, description="Heart rate (bpm)"
     )
     temperatura: float = Field(
-        ..., ge=35.0, le=42.0, description="Body temperature (°C)"
+        default=36.6, ge=30.0, le=45.0, description="Body temperature (°C)"
     )
     glucosa: float = Field(
-        default=90.0, ge=30.0, le=500.0,
+        default=90.0, ge=20.0, le=600.0,
         description="Blood glucose (mg/dL). Default 90 if not measured."
     )
     timestamp: datetime.datetime = Field(default_factory=datetime.datetime.now)
@@ -219,6 +281,9 @@ class VitalSigns(BaseModel):
     dispositivo_id: str = Field(..., description="Smartwatch device ID")
     emergencia_detectada: bool = Field(
         default=False, description="Automatic emergency detected"
+    )
+    patient_context: Optional[dict] = Field(
+        None, description="Dynamic clinical profile from phone for FDA/COFEPRIS compliance"
     )
 
 
@@ -399,45 +464,66 @@ async def receive_vital_signs(data: VitalSigns, user=Depends(verify_token)):
     the API still returns the ML + heuristic results.
     """
     # Default patient context (used when DB is unavailable)
-    patient_age = 50
-    patient_context_kwargs = {"edad": 50}
+    _demo = random.choice(DEMO_PATIENTS)
+    patient_age = _demo["edad"]
+    patient_context_kwargs = {"edad": _demo["edad"], "nombre_completo": _demo["nombre"]}
 
-    # --- OPTIONAL: Try to load patient profile from DB ---
-    db_available = False
+    # --- Initialize DB connection variable ---
     conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        db_available = True
-        try:
-            cursor.execute(
-                """SELECT edad, diabetico, hipertenso, cardiopata,
-                          nombre_completo, tipo_sangre,
-                          contacto_nombre, contacto_tel, alergias
-                   FROM patients WHERE usuario_id = %s""",
-                (data.usuario_id,)
-            )
-            patient_row = cursor.fetchone()
-            if patient_row:
-                patient_age = patient_row[0]
-                patient_context_kwargs = {
-                    "edad": patient_row[0],
-                    "diabetico": patient_row[1],
-                    "hipertenso": patient_row[2],
-                    "cardiopata": patient_row[3],
-                    "nombre_completo": patient_row[4] or "Paciente Desconocido",
-                    "tipo_sangre": patient_row[5] or "No especificado",
-                    "contacto_emergencia_nombre": patient_row[6] or "",
-                    "contacto_emergencia_tel": patient_row[7] or "",
-                }
-                logger.info(f"Patient profile loaded: {data.usuario_id} (age={patient_age})")
-            else:
-                logger.warning(f"Patient '{data.usuario_id}' not found in DB. Using defaults.")
-        except Exception as e:
-            logger.warning(f"Patient lookup failed (table may not exist yet): {e}")
-    except Exception as db_err:
-        logger.warning(f"Database unavailable — running in ML-only mode: {db_err}")
+
+    # --- PRIORITY 1: Dynamic Context from Phone (Universal Support) ---
+    if data.patient_context:
+        logger.info(f"Using dynamic clinical context from phone for user: {data.usuario_id}")
+        patient_age = data.patient_context.get("edad", 30)
+        patient_context_kwargs = {
+            "edad": patient_age,
+            "diabetico": data.patient_context.get("diabetico", False),
+            "hipertenso": data.patient_context.get("hipertenso", False),
+            "cardiopata": data.patient_context.get("cardiopata", False),
+            "nombre_completo": data.patient_context.get("nombre_completo", "Usuario RMHealth"),
+            "tipo_sangre": data.patient_context.get("tipo_sangre", "O+"),
+            "contacto_emergencia_nombre": data.patient_context.get("contacto_emergencia_nombre", ""),
+            "contacto_emergencia_tel": data.patient_context.get("contacto_emergencia_tel", ""),
+            "alergias": data.patient_context.get("alergias", [])
+        }
+        db_available = False # Skip DB lookup if phone provides the truth
+    else:
+        # --- PRIORITY 2: Try to load patient profile from DB ---
         db_available = False
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            db_available = True
+            try:
+                cursor.execute(
+                    """SELECT edad, diabetico, hipertenso, cardiopata,
+                              nombre_completo, tipo_sangre,
+                              contacto_nombre, contacto_tel, alergias
+                       FROM patients WHERE usuario_id = %s""",
+                    (data.usuario_id,)
+                )
+                patient_row = cursor.fetchone()
+                if patient_row:
+                    patient_age = patient_row[0]
+                    patient_context_kwargs = {
+                        "edad": patient_row[0],
+                        "diabetico": patient_row[1],
+                        "hipertenso": patient_row[2],
+                        "cardiopata": patient_row[3],
+                        "nombre_completo": patient_row[4] or random.choice(DEMO_PATIENTS)["nombre"],
+                        "tipo_sangre": patient_row[5] or "No especificado",
+                        "contacto_emergencia_nombre": patient_row[6] or "",
+                        "contacto_emergencia_tel": patient_row[7] or "",
+                    }
+                    logger.info(f"Patient profile loaded from DB: {data.usuario_id} (age={patient_age})")
+                else:
+                    logger.warning(f"Patient '{data.usuario_id}' not found in DB. Using demo defaults.")
+            except Exception as e:
+                logger.warning(f"Patient lookup failed (table may not exist yet): {e}")
+        except Exception as db_err:
+            logger.warning(f"Database unavailable — running in ML-only mode: {db_err}")
+            db_available = False
 
     try:
         # 1. ML TRIAGE CLASSIFICATION (GradientBoosting model) — NO DB REQUIRED
@@ -492,7 +578,7 @@ async def receive_vital_signs(data: VitalSigns, user=Depends(verify_token)):
                 lon=data.ubicacion_lon,
             )
             fhir_bundle = HospitalGateway.generate_fhir_r4_bundle(
-                data.usuario_id, analysis.dict(), engine_input.dict()
+                data.usuario_id, analysis.dict(), engine_input.dict(), real_context.dict()
             )
 
             logger.info(
@@ -501,11 +587,26 @@ async def receive_vital_signs(data: VitalSigns, user=Depends(verify_token)):
                 f"confidence={ml_result['confidence']:.2f})"
             )
 
-            # 6. DISPATCH EMERGENCY NOTIFICATIONS (SMS + Hospital)
+            # 6a. SEND FHIR BUNDLE TO HOSPITAL ENDPOINT
+            if hospital and hospital.endpoint:
+                try:
+                    fhir_resp = requests.post(
+                        hospital.endpoint,
+                        json=fhir_bundle,
+                        timeout=5,
+                        headers={"Content-Type": "application/fhir+json"},
+                    )
+                    logger.info(f"FHIR bundle sent to {hospital.name}: HTTP {fhir_resp.status_code}")
+                except Exception as fhir_err:
+                    logger.error(f"FHIR dispatch failed (non-blocking): {fhir_err}")
+            else:
+                logger.warning(f"FHIR bundle generated but no endpoint configured for hospital: {hospital.name if hospital else 'none'}")
+
+            # 6b. DISPATCH EMERGENCY NOTIFICATIONS (SMS + Hospital)
             try:
                 notification_result = NotificationService.dispatch_emergency_protocol(
                     patient_data={
-                        "nombre_completo": patient_context_kwargs.get("nombre_completo", "Paciente RMHealth"),
+                        "nombre_completo": patient_context_kwargs.get("nombre_completo", random.choice(DEMO_PATIENTS)["nombre"]),
                         "contacto_emergencia_nombre": patient_context_kwargs.get("contacto_emergencia_nombre", ""),
                         "contacto_emergencia_tel": patient_context_kwargs.get("contacto_emergencia_tel", ""),
                         "lat": data.ubicacion_lat,
@@ -522,14 +623,20 @@ async def receive_vital_signs(data: VitalSigns, user=Depends(verify_token)):
             try:
                 cursor = conn.cursor()
                 if analysis.emergencia_detectada:
+                    # Professional Clinical Description
+                    clinical_desc = (
+                        f"ID: {data.usuario_id} | Edad: {real_context.edad} | Sangre: {real_context.tipo_sangre} | "
+                        f"Alergias: {', '.join(real_context.alergias) or 'Ninguna'} | "
+                        f"Alerta: {analysis.nivel_criticidad} | "
+                        f"Factores: {', '.join(analysis.factores_riesgo)}"
+                    )
                     cursor.execute(
                         """INSERT INTO emergency_alerts
                            (usuario_id, tipo_emergencia, descripcion, ubicacion_lat, ubicacion_lon, estado)
                            VALUES (%s, %s, %s, %s, %s, %s)""",
-                        (data.usuario_id,
-                         analysis.nivel_criticidad,
-                         f"ML={ml_result['level']}({ml_result['confidence']:.0%}) | "
-                         f"Score: {analysis.score_riesgo:.1f} | {', '.join(analysis.factores_riesgo)}",
+                         (data.usuario_id,
+                          classify_emergency_label(analysis),
+                          clinical_desc,
                          data.ubicacion_lat,
                          data.ubicacion_lon,
                          'activa')
@@ -550,12 +657,115 @@ async def receive_vital_signs(data: VitalSigns, user=Depends(verify_token)):
                 except:
                     pass
 
+        # 7. PREVENTIVE TREND ANALYSIS (non-blocking)
+        preventive_count = 0
+        try:
+            # Build a VitalReading for the current submission
+            current_reading = VitalReading(
+                user_id=data.usuario_id,
+                heart_rate=data.frecuencia_cardiaca,
+                spo2=data.oxigeno,
+                systolic=data.presion_sistolica,
+                diastolic=data.presion_diastolica,
+                glucose=data.glucosa,
+                source="health_connect",
+                timestamp=datetime.datetime.utcnow(),
+            )
+
+            # Load recent readings from DB for trend analysis
+            trend_readings = [current_reading]
+            recent_db_alerts = []
+            if db_available and conn:
+                try:
+                    conn2 = get_db_connection()
+                    cursor2 = conn2.cursor()
+                    # Fetch last 24h of vitals for this user
+                    cursor2.execute(
+                        """SELECT ritmo_cardiaco, spo2, presion_sistolica, presion_diastolica,
+                                  glucosa, timestamp
+                           FROM vital_signs
+                           WHERE usuario_id = %s
+                             AND timestamp >= NOW() - INTERVAL '24 hours'
+                           ORDER BY timestamp ASC
+                           LIMIT 200""",
+                        (data.usuario_id,)
+                    )
+                    for row in cursor2.fetchall():
+                        trend_readings.append(VitalReading(
+                            user_id=data.usuario_id,
+                            heart_rate=row.get("ritmo_cardiaco"),
+                            spo2=row.get("spo2"),
+                            systolic=row.get("presion_sistolica"),
+                            diastolic=row.get("presion_diastolica"),
+                            glucose=row.get("glucosa"),
+                            source="health_connect",
+                            timestamp=row.get("timestamp", datetime.datetime.utcnow()),
+                        ))
+
+                    # Fetch recent preventive alerts for dedup
+                    cursor2.execute(
+                        """SELECT user_id, metric, severity, data_window, created_at
+                           FROM preventive_alerts
+                           WHERE user_id = %s
+                             AND created_at >= NOW() - INTERVAL '30 minutes'""",
+                        (data.usuario_id,)
+                    )
+                    for row in cursor2.fetchall():
+                        recent_db_alerts.append({
+                            "user_id": row["user_id"],
+                            "metric": row["metric"],
+                            "severity": row["severity"],
+                            "data_window": row["data_window"],
+                            "created_at": row["created_at"],
+                        })
+                    cursor2.close()
+                    conn2.close()
+                except Exception as trend_db_err:
+                    logger.warning(f"Could not load trend data from DB: {trend_db_err}")
+
+            # Run preventive analysis
+            prev_result = PreventiveAlertService.analyze_user_trends(
+                user_id=data.usuario_id,
+                readings=trend_readings,
+                recent_alerts=recent_db_alerts,
+            )
+
+            # Persist new preventive alerts to DB
+            if prev_result.alerts and db_available:
+                try:
+                    conn3 = get_db_connection()
+                    cursor3 = conn3.cursor()
+                    for pa in prev_result.alerts:
+                        cursor3.execute(
+                            """INSERT INTO preventive_alerts
+                               (user_id, metric, severity, title, message, recommendation,
+                                baseline_value, current_value, delta, data_window, source,
+                                requires_human_review)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                            (pa.user_id, pa.metric, pa.severity, pa.title, pa.message,
+                             pa.recommendation, pa.baseline_value, pa.current_value,
+                             pa.delta, pa.data_window, pa.source, pa.requires_human_review)
+                        )
+                    conn3.commit()
+                    cursor3.close()
+                    conn3.close()
+                    preventive_count = len(prev_result.alerts)
+                    logger.info(f"Saved {preventive_count} preventive alerts for {data.usuario_id}")
+                except Exception as pa_save_err:
+                    logger.warning(f"Could not persist preventive alerts: {pa_save_err}")
+            else:
+                preventive_count = len(prev_result.alerts)
+
+        except Exception as prev_err:
+            logger.warning(f"Preventive analysis failed (non-blocking): {prev_err}")
+
         return {
             "status": "success",
             "db_persisted": db_available,
             "ml_triage": ml_result,
             "analysis": analysis.dict(),
-            "hospital_routing": hospital.dict() if hospital else None
+            "hospital_routing": hospital.dict() if hospital else None,
+            "preventive_alerts_generated": preventive_count
         }
 
     except Exception as e:
@@ -643,6 +853,89 @@ async def get_emergencies_history(user=Depends(verify_token)):
     finally:
         cursor.close()
         conn.close()
+
+
+# ── Preventive Alerts Endpoints ───────────────────────────────────────────
+
+@app.get("/api/users/{user_id}/preventive-alerts")
+async def get_user_preventive_alerts(user_id: str, user=Depends(verify_token)):
+    """Retrieve preventive alerts for a specific user."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT id, user_id, metric, severity, title, message, recommendation,
+                      baseline_value, current_value, delta, data_window, source,
+                      requires_human_review, created_at, acknowledged_at
+               FROM preventive_alerts
+               WHERE user_id = %s
+               ORDER BY created_at DESC
+               LIMIT 50""",
+            (user_id,)
+        )
+        rows = cursor.fetchall()
+        alerts = []
+        for row in rows:
+            alerts.append({
+                "id": str(row["id"]),
+                "user_id": row["user_id"],
+                "metric": row["metric"],
+                "severity": row["severity"],
+                "title": row["title"],
+                "message": row["message"],
+                "recommendation": row["recommendation"],
+                "baseline_value": row["baseline_value"],
+                "current_value": row["current_value"],
+                "delta": row["delta"],
+                "data_window": row["data_window"],
+                "source": row["source"],
+                "requires_human_review": row["requires_human_review"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "acknowledged_at": row["acknowledged_at"].isoformat() if row["acknowledged_at"] else None,
+            })
+        return {"status": "success", "count": len(alerts), "alerts": alerts}
+    except Exception as e:
+        logger.error(f"Error fetching preventive alerts: {e}")
+        return {"status": "error", "message": "Could not retrieve preventive alerts", "alerts": []}
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+@app.post("/api/preventive-alerts/{alert_id}/acknowledge")
+async def acknowledge_preventive_alert(alert_id: str, user=Depends(verify_token)):
+    """Mark a preventive alert as acknowledged/seen by the user."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """UPDATE preventive_alerts
+               SET acknowledged_at = CURRENT_TIMESTAMP
+               WHERE id = %s::uuid AND acknowledged_at IS NULL
+               RETURNING id""",
+            (alert_id,)
+        )
+        updated = cursor.fetchone()
+        conn.commit()
+        if updated:
+            return {"status": "success", "message": "Alert acknowledged", "alert_id": alert_id}
+        else:
+            return {"status": "not_found", "message": "Alert not found or already acknowledged"}
+    except Exception as e:
+        logger.error(f"Error acknowledging alert: {e}")
+        raise HTTPException(status_code=500, detail="Could not acknowledge alert")
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 
 if __name__ == "__main__":
     import uvicorn

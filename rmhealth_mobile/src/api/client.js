@@ -37,7 +37,9 @@ export const apiService = {
       });
 
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
+        const errorBody = await response.text();
+        console.error(`[RMHealth API] Status ${response.status} — Detail: ${errorBody}`);
+        throw new Error(`API Error: ${response.status} — ${errorBody}`);
       }
 
       return await response.json();
@@ -81,6 +83,62 @@ export const apiService = {
     } catch (error) {
       console.error('Error fetching emergency history:', error);
       return { status: 'error', history: [], count: 0 };
+    }
+  },
+
+  /**
+   * Fetch preventive alerts for a user
+   * @param {string} userId - The user ID
+   */
+  getPreventiveAlerts: async (userId) => {
+    if (!AUTH_TOKEN) {
+      return { status: 'error', alerts: [], count: 0 };
+    }
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}/preventive-alerts`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${AUTH_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching preventive alerts:', error);
+      return { status: 'error', alerts: [], count: 0 };
+    }
+  },
+
+  /**
+   * Acknowledge (mark as seen) a preventive alert
+   * @param {string} alertId - The alert UUID
+   */
+  acknowledgeAlert: async (alertId) => {
+    if (!AUTH_TOKEN) {
+      return { status: 'error' };
+    }
+    try {
+      const response = await fetch(`${API_BASE_URL}/preventive-alerts/${alertId}/acknowledge`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${AUTH_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error acknowledging alert:', error);
+      return { status: 'error' };
     }
   }
 };
