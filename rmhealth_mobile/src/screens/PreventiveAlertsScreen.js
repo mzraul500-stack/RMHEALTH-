@@ -6,35 +6,39 @@ import {
 import { COLORS, SPACING } from '../theme';
 import { apiService } from '../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  BarChart3, AlertTriangle, Siren, Heart, Activity, Droplets, Wind,
+  Info, CheckCircle, Lightbulb,
+} from 'lucide-react-native';
 
 // ── Severity Configuration ────────────────────────────────────
 const SEVERITY_CONFIG = {
   LOW: {
-    color: '#64748B',     // Slate gray
+    color: '#64748B',
     bg: '#F1F5F9',
-    icon: '📊',
+    IconComp: BarChart3,
     label: 'Informativa',
   },
   MEDIUM: {
-    color: '#D97706',     // Amber
+    color: '#D97706',
     bg: '#FEF3C7',
-    icon: '⚠️',
+    IconComp: AlertTriangle,
     label: 'Atención',
   },
   HIGH: {
-    color: '#DC2626',     // Red
+    color: '#DC2626',
     bg: '#FEE2E2',
-    icon: '🚨',
+    IconComp: Siren,
     label: 'Prioritaria',
   },
 };
 
 const METRIC_LABELS = {
-  heart_rate: { icon: '❤️', label: 'Frecuencia Cardíaca' },
-  systolic:   { icon: '🔴', label: 'Presión Sistólica' },
-  diastolic:  { icon: '🔵', label: 'Presión Diastólica' },
-  spo2:       { icon: '🫁', label: 'Oxigenación (SpO₂)' },
-  glucose:    { icon: '🍬', label: 'Glucosa' },
+  heart_rate: { IconComp: Heart, label: 'Frecuencia Cardíaca' },
+  systolic:   { IconComp: Activity, label: 'Presión Sistólica' },
+  diastolic:  { IconComp: Droplets, label: 'Presión Diastólica' },
+  spo2:       { IconComp: Wind, label: 'Oxigenación (SpO₂)' },
+  glucose:    { IconComp: Droplets, label: 'Glucosa' },
 };
 
 /**
@@ -146,7 +150,7 @@ export const PreventiveAlertsScreen = ({ navigation }) => {
 
       {/* Disclaimer */}
       <View style={styles.disclaimerCard}>
-        <Text style={styles.disclaimerIcon}>ℹ️</Text>
+        <Info size={14} color="#0369A1" strokeWidth={2} style={{ marginRight: 6, marginTop: 1 }} />
         <Text style={styles.disclaimerText}>
           Estas alertas son informativas y preventivas. No constituyen un diagnóstico médico.
           Consulta a un profesional de salud para cualquier decisión clínica.
@@ -161,7 +165,7 @@ export const PreventiveAlertsScreen = ({ navigation }) => {
       >
         {alerts.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>✅</Text>
+            <CheckCircle size={48} color="#1B7A6E" strokeWidth={1.5} style={{ marginBottom: SPACING.md }} />
             <Text style={styles.emptyTitle}>Sin alertas preventivas</Text>
             <Text style={styles.emptyMessage}>
               No hay alertas preventivas por ahora.{'\n'}
@@ -171,7 +175,7 @@ export const PreventiveAlertsScreen = ({ navigation }) => {
         ) : (
           alerts.map((alert) => {
             const severity = SEVERITY_CONFIG[alert.severity] || SEVERITY_CONFIG.LOW;
-            const metric = METRIC_LABELS[alert.metric] || { icon: '📊', label: alert.metric };
+            const metric = METRIC_LABELS[alert.metric] || { IconComp: BarChart3, label: alert.metric };
             const isNew = !alert.acknowledged_at;
 
             return (
@@ -187,13 +191,13 @@ export const PreventiveAlertsScreen = ({ navigation }) => {
               >
                 <View style={styles.alertHeader}>
                   <View style={[styles.severityBadge, { backgroundColor: severity.bg }]}>
-                    <Text style={styles.severityIcon}>{severity.icon}</Text>
+                    <severity.IconComp size={12} color={severity.color} strokeWidth={2.5} style={{ marginRight: 4 }} />
                     <Text style={[styles.severityLabel, { color: severity.color }]}>
                       {severity.label}
                     </Text>
                   </View>
                   <View style={styles.metricBadge}>
-                    <Text style={styles.metricIcon}>{metric.icon}</Text>
+                    <metric.IconComp size={14} color="#64748B" strokeWidth={2} style={{ marginRight: 4 }} />
                     <Text style={styles.metricLabel}>{metric.label}</Text>
                   </View>
                 </View>
@@ -233,16 +237,18 @@ export const PreventiveAlertsScreen = ({ navigation }) => {
             {selectedAlert && (
               <>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalSeverityIcon}>
-                    {(SEVERITY_CONFIG[selectedAlert.severity] || SEVERITY_CONFIG.LOW).icon}
-                  </Text>
+                  {React.createElement(
+                    (SEVERITY_CONFIG[selectedAlert.severity] || SEVERITY_CONFIG.LOW).IconComp,
+                    { size: 28, color: (SEVERITY_CONFIG[selectedAlert.severity] || SEVERITY_CONFIG.LOW).color, strokeWidth: 2, style: { marginRight: SPACING.sm } }
+                  )}
                   <Text style={styles.modalTitle}>{selectedAlert.title}</Text>
                 </View>
 
                 <View style={styles.modalMetricRow}>
-                  <Text style={styles.modalMetricIcon}>
-                    {(METRIC_LABELS[selectedAlert.metric] || { icon: '📊' }).icon}
-                  </Text>
+                  {React.createElement(
+                    (METRIC_LABELS[selectedAlert.metric] || { IconComp: BarChart3 }).IconComp,
+                    { size: 18, color: '#1B7A6E', strokeWidth: 2, style: { marginRight: 6 } }
+                  )}
                   <Text style={styles.modalMetricLabel}>
                     {(METRIC_LABELS[selectedAlert.metric] || { label: selectedAlert.metric }).label}
                   </Text>
@@ -276,7 +282,7 @@ export const PreventiveAlertsScreen = ({ navigation }) => {
 
                 {/* Recommendation */}
                 <View style={styles.recCard}>
-                  <Text style={styles.recIcon}>💡</Text>
+                  <Lightbulb size={18} color="#166534" strokeWidth={2} style={{ marginRight: SPACING.sm, marginTop: 1 }} />
                   <Text style={styles.recText}>{selectedAlert.recommendation}</Text>
                 </View>
 

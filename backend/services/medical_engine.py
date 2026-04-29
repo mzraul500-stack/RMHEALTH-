@@ -98,30 +98,30 @@ class MedicalEngine:
             # FACTOR 4: Detección de inconsciencia post-caída
             if vitals.caida_detectada and not vitals.movimiento_posterior:
                 score_riesgo += 50
-                factores_riesgo.append("🚨 Posible inconsciencia post-caída detectada")
+                factores_riesgo.append("Posible inconsciencia post-caída detectada")
 
 
             # DECISIÓN FINAL SEGÚN UMBRALES
             emergencia = False
             nivel = "NORMAL"
-            recomendacion = "✅ Continuar monitoreo rutinario"
+            recomendacion = "Continuar monitoreo rutinario"
 
             if score_riesgo >= cls.UMBRAL_ALTA:
                 nivel = "CRITICAL"
                 emergencia = True
-                recomendacion = "🚨 Recomendación preliminar: requiere revisión urgente y posible activación de protocolo"
+                recomendacion = "Recomendación preliminar: requiere revisión urgente y posible activación de protocolo"
             elif score_riesgo >= cls.UMBRAL_MEDIA:
                 nivel = "HIGH"
                 emergencia = True
-                recomendacion = "⚠️ Recomendación preliminar: revisión humana prioritaria y posible contacto clínico"
+                recomendacion = "Recomendación preliminar: revisión humana prioritaria y posible contacto clínico"
             elif score_riesgo >= cls.UMBRAL_BAJA:
                 nivel = "MEDIUM"
                 emergencia = False
-                recomendacion = "📊 Monitoreo intensivo recomendado; considerar notificación según contexto"
+                recomendacion = "Monitoreo intensivo recomendado; considerar notificación según contexto"
 
             # Ajuste para NORMAL con factores leves presentes
             if nivel == "NORMAL" and factores_riesgo:
-                recomendacion = "📊 Monitoreo recomendado: se detectaron factores leves, observar evolución"
+                recomendacion = "Monitoreo recomendado: se detectaron factores leves, observar evolución"
 
             return AnalysisResult(
                 emergencia_detectada=emergencia,

@@ -202,6 +202,17 @@ export function useMedications() {
     });
   }, []);
 
+  // ─── UPDATE MEDICATION ─────────────────────────────────────────
+  const updateMedication = useCallback(async (id, updatedData) => {
+    setMedications(currentMeds => {
+      const updated = currentMeds.map(med =>
+        med.id === id ? { ...med, ...updatedData, lastUpdated: new Date().toISOString() } : med
+      );
+      persistMeds(updated);
+      return updated;
+    });
+  }, []);
+
   // ─── CLEAR ERROR ───────────────────────────────────────────────
   const clearError = useCallback(() => setError(null), []);
 
@@ -209,10 +220,11 @@ export function useMedications() {
     medications,
     isLoading,
     error,
-    recordDose,          // NEW: log a dose for today
-    isTakenToday,        // NEW: check if taken today
-    getDoseHistory,      // NEW: get 7-day history per med
+    recordDose,
+    isTakenToday,
+    getDoseHistory,
     addMedication,
+    updateMedication,
     deleteMedication,
     clearError,
   };

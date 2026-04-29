@@ -11,7 +11,7 @@ import { COLORS, SPACING } from '../../../theme';
  * - Per-medication status pills
  * - Motivational message based on adherence level
  */
-export const AdherenceDashboard = ({ medications }) => {
+export const AdherenceDashboard = ({ medications, language = 'es' }) => {
   const total = medications.length;
   const takenCount = medications.filter(m => m.taken).length;
   const pendingCount = total - takenCount;
@@ -39,20 +39,16 @@ export const AdherenceDashboard = ({ medications }) => {
 
   // Dynamic status color
   let statusColor = '#EF4444'; // Red
-  let statusEmoji = '⚠️';
-  let statusMessage = 'Aún tienes medicinas pendientes';
+  let statusMessage = language === 'en' ? 'Pending medications remaining' : 'Medicinas pendientes';
   if (percentage >= 100) {
     statusColor = '#10B981';
-    statusEmoji = '🎉';
-    statusMessage = '¡Excelente! Todas las medicinas tomadas';
+    statusMessage = language === 'en' ? 'All doses completed' : 'Todas las dosis completadas';
   } else if (percentage >= 75) {
     statusColor = '#10B981';
-    statusEmoji = '💪';
-    statusMessage = '¡Casi completo! Sigue así';
+    statusMessage = language === 'en' ? 'Almost complete' : 'Casi completo';
   } else if (percentage >= 50) {
     statusColor = '#F59E0B';
-    statusEmoji = '📋';
-    statusMessage = 'Vas a la mitad, no olvides el resto';
+    statusMessage = language === 'en' ? 'Halfway through, continue with remaining doses' : 'Continúa con las dosis restantes';
   }
 
   // Animated scale for the circle border width
@@ -66,8 +62,8 @@ export const AdherenceDashboard = ({ medications }) => {
     return (
       <Animated.View style={[styles.emptyContainer, { opacity: fadeIn }]}>
         <Text style={styles.emptyEmoji}>💊</Text>
-        <Text style={styles.emptyText}>Agrega tu primer medicamento</Text>
-        <Text style={styles.emptySubtext}>para ver tu progreso de adherencia</Text>
+        <Text style={styles.emptyText}>{language === 'en' ? 'Add your first medication' : 'Agrega tu primer medicamento'}</Text>
+        <Text style={styles.emptySubtext}>{language === 'en' ? 'to see your adherence progress' : 'para ver tu progreso de adherencia'}</Text>
       </Animated.View>
     );
   }
@@ -89,7 +85,7 @@ export const AdherenceDashboard = ({ medications }) => {
               <Text style={styles.percentSign}>%</Text>
             </View>
           </Animated.View>
-          <Text style={styles.fractionText}>{takenCount} de {total}</Text>
+          <Text style={styles.fractionText}>{takenCount} {language === 'en' ? 'of' : 'de'} {total}</Text>
         </View>
 
         {/* Right: Stats */}
@@ -99,7 +95,7 @@ export const AdherenceDashboard = ({ medications }) => {
             <View style={[styles.statDot, { backgroundColor: '#10B981' }]} />
             <View style={styles.statInfo}>
               <Text style={styles.statNumber}>{takenCount}</Text>
-              <Text style={styles.statLabel}>Tomadas</Text>
+              <Text style={styles.statLabel}>{language === 'en' ? 'Taken' : 'Tomadas'}</Text>
             </View>
           </View>
 
@@ -108,7 +104,7 @@ export const AdherenceDashboard = ({ medications }) => {
             <View style={[styles.statDot, { backgroundColor: '#EF4444' }]} />
             <View style={styles.statInfo}>
               <Text style={styles.statNumber}>{pendingCount}</Text>
-              <Text style={styles.statLabel}>Pendientes</Text>
+              <Text style={styles.statLabel}>{language === 'en' ? 'Pending' : 'Pendientes'}</Text>
             </View>
           </View>
         </View>
@@ -116,7 +112,6 @@ export const AdherenceDashboard = ({ medications }) => {
 
       {/* Status Message */}
       <View style={[styles.statusBar, { backgroundColor: statusColor + '18' }]}>
-        <Text style={styles.statusEmoji}>{statusEmoji}</Text>
         <Text style={[styles.statusMessage, { color: statusColor }]}>
           {statusMessage}
         </Text>

@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS preventive_alerts (
     data_window TEXT NOT NULL,      -- 15m, 2h, 24h
     source TEXT DEFAULT 'unknown',  -- manual, health_connect, unknown
     requires_human_review BOOLEAN DEFAULT FALSE,
+    response_type TEXT DEFAULT NULL,     -- false_alarm, need_help
+    response_reason TEXT DEFAULT NULL,   -- user-provided reason for false alarms
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     acknowledged_at TIMESTAMP WITH TIME ZONE NULL
 );
@@ -23,3 +25,7 @@ CREATE TABLE IF NOT EXISTS preventive_alerts (
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_prev_alerts_user ON preventive_alerts(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_prev_alerts_dedup ON preventive_alerts(user_id, metric, severity, data_window, created_at DESC);
+
+-- Migration: Add response columns if table already exists
+ALTER TABLE preventive_alerts ADD COLUMN IF NOT EXISTS response_type TEXT DEFAULT NULL;
+ALTER TABLE preventive_alerts ADD COLUMN IF NOT EXISTS response_reason TEXT DEFAULT NULL;

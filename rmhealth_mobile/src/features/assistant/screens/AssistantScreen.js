@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react';
 import {
   StyleSheet, View, Text, ScrollView, TextInput,
-  TouchableOpacity, ActivityIndicator, Platform
+  TouchableOpacity, ActivityIndicator, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { LocalWellnessEngine } from '../services/LocalWellnessEngine';
+import { Bot, Lock, Send, AlertTriangle } from 'lucide-react-native';
 
 /**
  * AssistantScreen — RM Coach (Wellness Chat Assistant)
@@ -23,8 +24,8 @@ export const AssistantScreen = () => {
       id: '0',
       type: 'bot',
       text: language === 'en'
-        ? '👋 Hi! I\'m **RM Coach**, your wellness assistant.\n\nYou can ask me about:\n• Your health metrics\n• Weekly summary\n• Medications\n• How the app works\n\nTry writing "summary" or ask about blood pressure!'
-        : '👋 ¡Hola! Soy **RM Coach**, tu asistente de bienestar.\n\nPuedes preguntarme sobre:\n• Tus métricas de salud\n• Resumen semanal\n• Medicamentos\n• Cómo funciona la app\n\n¡Escribe "resumen" o pregunta sobre presión arterial!',
+        ? 'Hi! I\'m **RM Coach**, your wellness assistant.\n\nYou can ask me about:\n• Your health metrics\n• Weekly summary\n• Medications\n• How the app works\n\nTry writing "summary" or ask about blood pressure!'
+        : '¡Hola! Soy **RM Coach**, tu asistente de bienestar.\n\nPuedes preguntarme sobre:\n• Tus métricas de salud\n• Resumen semanal\n• Medicamentos\n• Cómo funciona la app\n\n¡Escribe "resumen" o pregunta sobre presión arterial!',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -62,8 +63,8 @@ export const AssistantScreen = () => {
         id: (Date.now() + 1).toString(),
         type: 'bot',
         text: language === 'en'
-          ? '⚠️ Something went wrong. Try again.'
-          : '⚠️ Algo salió mal. Intenta de nuevo.',
+          ? 'Something went wrong. Try again.'
+          : 'Algo salió mal. Intenta de nuevo.',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -79,7 +80,7 @@ export const AssistantScreen = () => {
       {/* Header */}
       <View style={[s.header, { paddingTop: insets.top }]}>
         <View style={s.headerAvatar}>
-          <Text style={s.avatarText}>🤖</Text>
+          <Bot size={22} color="#1B7A6E" strokeWidth={2} />
         </View>
         <View>
           <Text style={s.headerTitle}>RM Coach</Text>
@@ -89,12 +90,16 @@ export const AssistantScreen = () => {
         </View>
         <View style={s.headerBadge}>
           <Text style={s.headerBadgeText}>
-            {language === 'en' ? '🔒 Private' : '🔒 Privado'}
+            {language === 'en' ? 'Private' : 'Privado'}
           </Text>
         </View>
       </View>
 
-      <View style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
         <ScrollView
           ref={scrollRef}
           style={{ flex: 1 }}
@@ -142,10 +147,10 @@ export const AssistantScreen = () => {
             onPress={handleSend}
             disabled={!input.trim() || thinking}
           >
-            <Text style={s.sendIcon}>➤</Text>
+            <Send size={18} color="#FFF" strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </View>
   );
 };

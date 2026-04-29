@@ -109,12 +109,15 @@ El uso de esta aplicación implica la aceptación plena de los presentes términ
     vital_result: 'Reporte de Detección de Patrones',
 
     // === NAVIGATION ===
-    nav_home: 'Inicio',
+    nav_home:        'Inicio',
+    nav_coach:       'Coach',    nav_coac:        'Coach',
+    nav_history:     'Historial',
+    nav_meds:        'Medicinas', nav_med:         'Medicinas',
+    nav_more:        'Más',      nav_mor:         'Más',
     nav_medications: 'Medicinas',
-    nav_history: 'Historial',
-    nav_profile: 'Perfil',
-    nav_settings: 'Configuración',
-    nav_about: 'Acerca de',
+    nav_profile:     'Perfil',
+    nav_settings:    'Configuración',
+    nav_about:       'Acerca de',
 
     // === AUDIT LOG ===
     audit_consent_accepted: 'Consentimiento informado aceptado',
@@ -221,12 +224,15 @@ Use of this application constitutes full acceptance of these terms.`,
     vital_result: 'Analysis Result',
 
     // === NAVIGATION ===
-    nav_home: 'Home',
+    nav_home:        'Home',
+    nav_coach:       'Coach',    nav_coac:        'Coach',
+    nav_history:     'History',
+    nav_meds:        'Meds',     nav_med:         'Meds',
+    nav_more:        'More',     nav_mor:         'More',
     nav_medications: 'Medications',
-    nav_history: 'History',
-    nav_profile: 'Profile',
-    nav_settings: 'Settings',
-    nav_about: 'About',
+    nav_profile:     'Profile',
+    nav_settings:    'Settings',
+    nav_about:       'About',
 
     // === AUDIT LOG ===
     audit_consent_accepted: 'Informed consent accepted',

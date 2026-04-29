@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RMHealth — Panel Médico</title>
+  <meta name="description" content="Dashboard clínico para profesionales de salud. Monitoreo de pacientes en tiempo real.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen" class="screen active">
+    <div class="login-container">
+      <div class="login-logo">
+        <div class="logo-mark">RM</div>
+        <h1>RMHealth</h1>
+        <p class="login-subtitle">Panel Médico</p>
+      </div>
+      <form id="login-form" autocomplete="on">
+        <div class="input-group">
+          <label for="login-email">Correo electrónico</label>
+          <input type="email" id="login-email" placeholder="doctor@ejemplo.com" required autocomplete="email">
+        </div>
+        <div class="input-group">
+          <label for="login-password">Contraseña</label>
+          <input type="password" id="login-password" placeholder="Ingresa tu contraseña" required autocomplete="current-password">
+        </div>
+        <button type="submit" id="login-btn" class="btn-primary">Iniciar Sesión</button>
+        <p id="login-error" class="error-msg" style="display:none;"></p>
+      </form>
+      <p class="login-footer">Sistema exclusivo para profesionales de salud verificados</p>
+    </div>
+  </div>
+
+  <!-- MAIN DASHBOARD -->
+  <div id="dashboard-screen" class="screen">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="logo-small">RM</div>
+        <span class="topbar-title">RMHealth</span>
+      </div>
+      <nav class="topbar-nav">
+        <button class="nav-btn active" data-view="overview">Resumen</button>
+        <button class="nav-btn" data-view="patients">Pacientes</button>
+        <button class="nav-btn" data-view="invite">Invitar</button>
+      </nav>
+      <div class="topbar-right">
+        <span id="doctor-name" class="doctor-name"></span>
+        <button id="logout-btn" class="btn-outline-sm">Cerrar Sesión</button>
+      </div>
+    </header>
+
+    <!-- OVERVIEW -->
+    <main id="view-overview" class="view active">
+      <div class="page-header">
+        <h2>Panel de Control</h2>
+        <p id="overview-date" class="page-subtitle"></p>
+      </div>
+      <div class="summary-grid">
+        <div class="summary-card" id="card-patients">
+          <div class="summary-icon">P</div>
+          <div class="summary-data">
+            <span class="summary-value" id="stat-patients">--</span>
+            <span class="summary-label">Pacientes activos</span>
+          </div>
+        </div>
+        <div class="summary-card card-warning" id="card-alerts">
+          <div class="summary-icon">A</div>
+          <div class="summary-data">
+            <span class="summary-value" id="stat-alerts">--</span>
+            <span class="summary-label">Alertas activas</span>
+          </div>
+        </div>
+        <div class="summary-card card-danger" id="card-escalations">
+          <div class="summary-icon">E</div>
+          <div class="summary-data">
+            <span class="summary-value" id="stat-escalations">--</span>
+            <span class="summary-label">Escalamientos 24h</span>
+          </div>
+        </div>
+        <div class="summary-card card-info" id="card-pending">
+          <div class="summary-icon">I</div>
+          <div class="summary-data">
+            <span class="summary-value" id="stat-pending">--</span>
+            <span class="summary-label">Invitaciones pendientes</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent patients quick list -->
+      <div class="section-card">
+        <h3>Pacientes recientes</h3>
+        <div id="recent-patients-list" class="patients-quick-list">
+          <p class="empty-state">Cargando...</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- PATIENTS LIST -->
+    <main id="view-patients" class="view">
+      <div class="page-header">
+        <h2>Mis Pacientes</h2>
+      </div>
+      <div id="patients-table-container" class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Ultimo Registro</th>
+              <th>FC</th>
+              <th>PA</th>
+              <th>SpO2</th>
+              <th>Glucosa</th>
+              <th>Alertas</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="patients-tbody"></tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- INVITE -->
+    <main id="view-invite" class="view">
+      <div class="page-header">
+        <h2>Invitar Paciente</h2>
+        <p class="page-subtitle">Genera un código para que tu paciente lo ingrese desde su aplicación movil.</p>
+      </div>
+      <div class="invite-container">
+        <button id="generate-invite-btn" class="btn-primary">Generar Código de Invitación</button>
+        <div id="invite-result" style="display:none;">
+          <div class="invite-code-display">
+            <span id="invite-code-value" class="invite-code"></span>
+          </div>
+          <p id="invite-expiry" class="invite-expiry"></p>
+          <p class="invite-instructions">El paciente debe ingresar este código en: Configuración &gt; Mis Médicos &gt; Vincular Médico</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- PATIENT DETAIL (injected dynamically) -->
+    <main id="view-patient-detail" class="view">
+      <div class="page-header">
+        <button id="back-to-patients" class="btn-outline-sm">Volver</button>
+        <h2 id="detail-patient-name"></h2>
+      </div>
+      <div class="detail-tabs">
+        <button class="detail-tab active" data-detail="vitals">Signos Vitales</button>
+        <button class="detail-tab" data-detail="alerts">Alertas</button>
+        <button class="detail-tab" data-detail="meds">Medicamentos</button>
+        <button class="detail-tab" data-detail="profile">Perfil</button>
+      </div>
+      <div id="detail-content" class="detail-content"></div>
+    </main>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

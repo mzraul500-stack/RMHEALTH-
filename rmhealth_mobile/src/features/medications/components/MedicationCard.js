@@ -11,7 +11,7 @@ import { COLORS, SPACING } from '../../../theme';
  * - Long press delete
  * - Animated entry
  */
-export function MedicationCard({ medication, isTaken, doseHistory, onRecordDose, onDelete }) {
+export function MedicationCard({ medication, isTaken, doseHistory, onRecordDose, onEdit, onDelete }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
@@ -30,110 +30,121 @@ export function MedicationCard({ medication, isTaken, doseHistory, onRecordDose,
     onRecordDose(medication.id);
   };
 
-  // 7-day mini calendar
-  const weekDots = (doseHistory || []).slice(-7);
-
   return (
     <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
-      <TouchableOpacity
-        style={[styles.card, isTaken ? styles.cardTaken : styles.cardPending]}
-        onPress={handlePress}
-        activeOpacity={0.85}
-        accessibilityLabel={`${medication.name}, ${isTaken ? 'tomada' : 'pendiente'}`}
-        accessibilityRole="button"
-      >
-        {/* Left: Status circle */}
-        <View style={styles.leftIndicator}>
-          <View style={[styles.statusCircle, isTaken ? styles.circleTaken : styles.circlePending]}>
-            {isTaken && <Text style={styles.checkmark}>✓</Text>}
-          </View>
-        </View>
-
-        {/* Center: Info */}
-        <View style={styles.infoContainer}>
-          <Text style={[styles.name, isTaken && styles.nameTaken]}>{medication.name}</Text>
-          <Text style={styles.details}>{medication.dosage} • {medication.frequency}</Text>
-          <View style={styles.timeRow}>
-            <Text style={styles.timeIcon}>🕐</Text>
-            <Text style={styles.time}>{medication.time}</Text>
-          </View>
-
-          {/* 7-day dose history dots */}
-          {weekDots.length > 0 && (
-            <View style={styles.weekRow}>
-              {weekDots.map((day, i) => (
-                <View key={i} style={[styles.dayDot, day.taken ? styles.dotTaken : styles.dotMissed]}>
-                  <Text style={styles.dotText}>{day.taken ? '✓' : '·'}</Text>
-                </View>
-              ))}
-              <Text style={styles.weekLabel}>7 días</Text>
+      <View style={styles.cardContainer}>
+        <TouchableOpacity
+          style={[styles.card, isTaken ? styles.cardTaken : styles.cardPending]}
+          onPress={handlePress}
+          activeOpacity={0.85}
+        >
+          {/* Left: Status circle */}
+          <View style={styles.leftIndicator}>
+            <View style={[styles.statusCircle, isTaken ? styles.circleTaken : styles.circlePending]}>
+              {isTaken && <Text style={styles.checkmark}>✓</Text>}
             </View>
-          )}
-        </View>
+          </View>
 
-        {/* Right: Status + Delete */}
-        <View style={styles.rightSection}>
-          <Text style={[styles.statusText, { color: isTaken ? '#10B981' : '#EF4444' }]}>
-            {isTaken ? 'Tomada ✓' : 'Pendiente'}
-          </Text>
-          {isTaken && medication._takenAt && (
-            <Text style={styles.takenTime}>
-              {new Date(medication._takenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {/* Center: Info */}
+          <View style={styles.infoContainer}>
+            <Text style={[styles.name, isTaken && styles.nameTaken]}>{medication.name}</Text>
+            <Text style={styles.details}>{medication.dosage} • {medication.frequency}</Text>
+            <View style={styles.timeRow}>
+              <Text style={styles.timeIcon}>Próxima toma:</Text>
+              <Text style={styles.time}>{medication.time}</Text>
+            </View>
+          </View>
+
+          {/* Right: Status */}
+          <View style={styles.rightSection}>
+            <Text style={[styles.statusText, { color: isTaken ? '#10B981' : '#EF4444' }]}>
+              {isTaken ? 'Completado' : 'Pendiente'}
             </Text>
-          )}
-          {onDelete && (
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => onDelete(medication.id)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Text style={styles.deleteText}>✕</Text>
-            </TouchableOpacity>
-          )}
+          </View>
+        </TouchableOpacity>
+
+        {/* Action Buttons Row */}
+        <View style={styles.actionsRow}>
+          <TouchableOpacity 
+            style={styles.actionButton} 
+            onPress={() => onEdit(medication)}
+          >
+            <Text style={[styles.actionText, { color: '#3BAFAA' }]}>Editar</Text>
+          </TouchableOpacity>
+          
+          <View style={styles.divider} />
+
+          <TouchableOpacity 
+            style={styles.actionButton} 
+            onPress={() => onDelete(medication.id, medication.name)}
+          >
+            <Text style={[styles.actionText, { color: '#E74C3C' }]}>Eliminar</Text>
+          </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.surface, borderRadius: 16, padding: 16,
-    marginVertical: 6, marginHorizontal: SPACING.md,
-    flexDirection: 'row', alignItems: 'center',
-    shadowColor: '#1E293B', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08, shadowRadius: 8, elevation: 4,
-    borderLeftWidth: 5,
+  cardContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    marginVertical: 8,
+    marginHorizontal: SPACING.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#1B4F72',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
   },
-  cardPending: { borderLeftColor: '#EF4444' },
+  card: {
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderLeftWidth: 6,
+  },
+  cardPending: { borderLeftColor: '#3BAFAA' }, // Marca Teal RMHealth
   cardTaken: { borderLeftColor: '#10B981' },
   leftIndicator: { marginRight: 14 },
   statusCircle: {
-    width: 36, height: 36, borderRadius: 18, borderWidth: 3,
+    width: 32, height: 32, borderRadius: 16, borderWidth: 2,
     alignItems: 'center', justifyContent: 'center',
   },
-  circlePending: { borderColor: '#EF4444', backgroundColor: '#FEE2E2' },
+  circlePending: { borderColor: '#3BAFAA', backgroundColor: '#F0F9F9' },
   circleTaken: { borderColor: '#10B981', backgroundColor: '#10B981' },
-  checkmark: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
+  checkmark: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
   infoContainer: { flex: 1 },
-  name: { fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 2 },
-  nameTaken: { textDecorationLine: 'line-through', opacity: 0.6 },
-  details: { fontSize: 14, color: '#64748B', marginBottom: 4, fontWeight: '500' },
+  name: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 2 },
+  nameTaken: { opacity: 0.6 },
+  details: { fontSize: 13, color: '#64748B', marginBottom: 4, fontWeight: '600' },
   timeRow: { flexDirection: 'row', alignItems: 'center' },
-  timeIcon: { fontSize: 12, marginRight: 4 },
-  time: { fontSize: 16, fontWeight: '700', color: COLORS.primary },
-  weekRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 3 },
-  dayDot: {
-    width: 18, height: 18, borderRadius: 9,
-    justifyContent: 'center', alignItems: 'center',
+  timeIcon: { fontSize: 12, marginRight: 4, color: '#94A3B8' },
+  time: { fontSize: 14, fontWeight: '700', color: '#1B4F72' },
+  rightSection: { alignItems: 'flex-end' },
+  statusText: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
+  actionsRow: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    backgroundColor: '#F8FAFC',
   },
-  dotTaken: { backgroundColor: '#D1FAE5' },
-  dotMissed: { backgroundColor: '#F1F5F9' },
-  dotText: { fontSize: 10, fontWeight: '800', color: '#10B981' },
-  weekLabel: { fontSize: 9, color: '#94A3B8', marginLeft: 4, fontWeight: '600' },
-  rightSection: { alignItems: 'flex-end', justifyContent: 'space-between', paddingLeft: 8, minHeight: 60 },
-  statusText: { fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
-  takenTime: { fontSize: 10, color: '#10B981', fontWeight: '600', marginTop: 2 },
-  deleteButton: { padding: 4, marginTop: 4 },
-  deleteText: { fontSize: 16, color: '#CBD5E1', fontWeight: 'bold' },
+  actionButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  divider: {
+    width: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 10,
+  }
 });

@@ -231,7 +231,7 @@ function PermissionRow({ perm, enabled, onToggle }) {
         {/* Status badge */}
         <TouchableOpacity onPress={handleToggle} activeOpacity={0.6}>
           <View style={[s.statusChip, enabled ? s.statusChipActive : s.statusChipPending]}>
-            <Text style={s.statusChipText}>{enabled ? '✅' : '⚠️'}</Text>
+            <Text style={s.statusChipText}>{enabled ? 'OK' : '--'}</Text>
           </View>
         </TouchableOpacity>
 
@@ -397,7 +397,7 @@ function PermissionSetupScreen({ onComplete }) {
           <Text style={s.setupTitle}>Configuración Inicial</Text>
           <Text style={s.setupSubtitle}>
             RMHealth necesita estos permisos para protegerte 24/7.{'\n'}
-            Activa cada uno y marca ✅ cuando esté listo.
+            Activa cada uno y marca cuando esté listo.
           </Text>
         </View>
 
@@ -468,62 +468,92 @@ function PermissionSetupScreen({ onComplete }) {
   );
 }
 
+import { Switch } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
+
 // ════════════════════════════════════════════════════════════
-// DEVICE LIST SCREEN (original, preserved)
+// DEVICE LIST SCREEN
 // ════════════════════════════════════════════════════════════
 function DeviceListScreen() {
   const { language } = useLanguage();
+  const { isHighContrast, toggleHighContrast, colors } = useTheme();
   const txt = TEXTS[language] || TEXTS.es;
   const [selectedDevice, setSelectedDevice] = useState(null);
 
+  // Translation fallbacks for the new accessibility block
+  const a11yTitle = language === 'en' ? 'Accessibility (WCAG 2.1)' : 'Accesibilidad (WCAG 2.1)';
+  const highContrastTxt = language === 'en' ? 'High Contrast Mode' : 'Modo Alto Contraste';
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>{txt.title}</Text>
-        <Text style={styles.subtitle}>{txt.subtitle}</Text>
+        <Text style={[styles.title, { color: colors.secondary }]}>{txt.title}</Text>
+        <Text style={[styles.subtitle, { color: colors.text }]}>{txt.subtitle}</Text>
 
         {/* Manual mode indicator */}
-        <View style={styles.manualBanner}>
+        <View style={[styles.manualBanner, isHighContrast && styles.hcBorder]}>
           <Text style={styles.manualIcon}>✍️</Text>
-          <Text style={styles.manualText}>{txt.manual_note}</Text>
+          <Text style={[styles.manualText, { color: isHighContrast ? colors.text : '#92400E' }]}>{txt.manual_note}</Text>
         </View>
 
         {SUPPORTED_DEVICES.map((device) => (
           <TouchableOpacity 
             key={device.id} 
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={`${device.name}. ${device.status === 'available' ? txt.available : txt.coming_soon}`}
             style={[
               styles.deviceCard, 
               selectedDevice === device.id && styles.selectedCard,
-              device.status === 'coming_soon' && styles.disabledCard
+              device.status === 'coming_soon' && styles.disabledCard,
+              { backgroundColor: colors.surface, borderColor: isHighContrast ? colors.border : COLORS.border },
+              isHighContrast && { borderWidth: 2 }
             ]}
             onPress={() => device.status === 'available' && setSelectedDevice(device.id)}
             disabled={device.status === 'coming_soon'}
           >
-            <View style={styles.iconContainer}>
+            <View style={[styles.iconContainer, isHighContrast && { backgroundColor: '#E2E8F0', borderWidth: 1 }]}>
               <Text style={styles.deviceIcon}>{device.icon}</Text>
             </View>
             <View style={styles.deviceInfo}>
-              <Text style={styles.deviceName}>{device.name}</Text>
-              <Text style={styles.deviceSdk}>SDK: {device.sdk}</Text>
-              <Text style={styles.devicePlatform}>{device.platform}</Text>
+              <Text style={[styles.deviceName, { color: colors.text }]}>{device.name}</Text>
+              <Text style={[styles.deviceSdk, { color: colors.text }]}>SDK: {device.sdk}</Text>
+              <Text style={[styles.devicePlatform, { color: colors.primary }]}>{device.platform}</Text>
             </View>
             {device.status === 'available' ? (
-              <View style={[styles.statusBadge, selectedDevice === device.id && styles.activeBadge]}>
+              <View style={[styles.statusBadge, selectedDevice === device.id && styles.activeBadge, isHighContrast && selectedDevice === device.id && { backgroundColor: colors.primary }]}>
                 <Text style={[styles.statusText, selectedDevice === device.id && styles.activeText]}>
                   {selectedDevice === device.id ? txt.selected : txt.available}
                 </Text>
               </View>
             ) : (
-              <View style={styles.soonBadge}>
+              <View style={[styles.soonBadge, isHighContrast && { borderWidth: 1 }]}>
                 <Text style={styles.soonText}>{txt.coming_soon}</Text>
               </View>
             )}
           </TouchableOpacity>
         ))}
 
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>{txt.info_title}</Text>
-          <Text style={styles.infoText}>{txt.info_text}</Text>
+        <View style={[styles.infoBox, isHighContrast && { borderColor: colors.primary, borderWidth: 2 }]}>
+          <Text style={[styles.infoTitle, { color: colors.primary }]}>{txt.info_title}</Text>
+          <Text style={[styles.infoText, { color: colors.text }]}>{txt.info_text}</Text>
+        </View>
+
+        {/* Accessibility Section */}
+        <View style={styles.a11ySection}>
+          <Text style={[styles.title, { color: colors.secondary, marginTop: 24 }]}>{a11yTitle}</Text>
+          <View style={[styles.deviceCard, { backgroundColor: colors.surface, borderColor: isHighContrast ? colors.border : COLORS.border, justifyContent: 'space-between' }]}>
+            <Text style={[styles.deviceName, { color: colors.text }]}>{highContrastTxt}</Text>
+            <Switch
+              value={isHighContrast}
+              onValueChange={toggleHighContrast}
+              trackColor={{ false: '#CBD5E1', true: colors.primary }}
+              thumbColor={isHighContrast ? '#FFFFFF' : '#FFFFFF'}
+              accessible={true}
+              accessibilityRole="switch"
+              accessibilityLabel={highContrastTxt}
+            />
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -689,14 +719,15 @@ const styles = StyleSheet.create({
   manualBanner: {
     flexDirection: 'row', backgroundColor: '#FEF3C7', borderRadius: 12,
     padding: SPACING.md, marginBottom: SPACING.lg, alignItems: 'center',
-    borderWidth: 1, borderColor: '#F59E0B',
+    borderWidth: 1, borderColor: '#F59E0B', minHeight: 44,
   },
+  hcBorder: { borderWidth: 2, borderColor: '#000' },
   manualIcon: { fontSize: 20, marginRight: 10 },
   manualText: { flex: 1, fontSize: 13, color: '#92400E', lineHeight: 18 },
   deviceCard: {
     backgroundColor: COLORS.surface, borderRadius: 16, padding: SPACING.md,
     flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border, elevation: 2,
+    borderWidth: 1, borderColor: COLORS.border, elevation: 2, minHeight: 44,
   },
   selectedCard: { borderColor: COLORS.primary, borderWidth: 2, backgroundColor: 'rgba(59,175,170,0.05)' },
   disabledCard: { opacity: 0.5 },
@@ -711,14 +742,14 @@ const styles = StyleSheet.create({
   devicePlatform: { color: COLORS.primary, fontSize: 10, fontWeight: 'bold', marginTop: 4 },
   statusBadge: {
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#E2E8F0', minHeight: 44, justifyContent: 'center'
   },
   activeBadge: { backgroundColor: COLORS.primary },
   statusText: { color: COLORS.text, fontSize: 10, fontWeight: 'bold' },
   activeText: { color: '#FFF' },
   soonBadge: {
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.08)',
+    backgroundColor: 'rgba(0,0,0,0.08)', minHeight: 44, justifyContent: 'center'
   },
   soonText: { color: '#94A3B8', fontSize: 8, fontWeight: 'bold' },
   infoBox: {
@@ -727,4 +758,5 @@ const styles = StyleSheet.create({
   },
   infoTitle: { color: COLORS.primary, fontSize: 14, fontWeight: 'bold', marginBottom: 4 },
   infoText: { color: COLORS.text, fontSize: 12, lineHeight: 18 },
+  a11ySection: { marginTop: 10 },
 });

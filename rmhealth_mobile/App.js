@@ -2,26 +2,45 @@ import React, { useState, useEffect, Component } from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { StatusBar, ActivityIndicator, View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { StatusBar, ActivityIndicator, View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, Platform, Alert } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Screens
 import { HomeScreen } from './src/screens/HomeScreen';
 import { MedicationScreen } from './src/features/medications/screens/MedicationScreen';
 import { HistoryScreen } from './src/screens/HistoryScreen';
 import { DeviceSettingsScreen } from './src/screens/DeviceSettingsScreen';
-import { ProfileScreen } from './src/screens/ProfileScreen';
+import { ProfileScreen } from './src/screens/profile/ProfileScreen';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { AssistantScreen } from './src/features/assistant/screens/AssistantScreen';
 import { PreventiveAlertsScreen } from './src/screens/PreventiveAlertsScreen';
+
+// Auth Screens (M1)
+import { LoginScreen } from './src/screens/auth/LoginScreen';
+import { RegisterScreen } from './src/screens/auth/RegisterScreen';
+import { TwoFactorScreen } from './src/screens/auth/TwoFactorScreen';
 
 // Legal / Compliance Screens
 import { PrivacyNoticeScreen, isPrivacyAccepted } from './src/screens/legal/PrivacyNoticeScreen';
 import { TermsScreen, isTermsAccepted } from './src/screens/legal/TermsScreen';
 import { InformedConsentScreen, isConsentGiven } from './src/screens/legal/InformedConsentScreen';
 
+// Consent (M2)
+import { ConsentOnboardingScreen } from './src/screens/consent/ConsentOnboardingScreen';
+import { PrivacySettingsScreen } from './src/screens/settings/PrivacySettingsScreen';
+import MyDoctorsScreen from './src/screens/settings/MyDoctorsScreen';
+
+// Medical Profile (M3)
+import { EmergencyCardScreen } from './src/screens/profile/EmergencyCardScreen';
+
+// Clinical Record (M9)
+import { MiExpedienteScreen } from './src/screens/MiExpedienteScreen';
+
 // Context
-import { LanguageProvider } from './src/contexts/LanguageContext';
+import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { COLORS } from './src/theme';
+import { User, ShieldAlert, Watch, Lock, Stethoscope, CreditCard, Info, LogOut, FileText, Home as HomeIcon, Bot, CalendarDays, Pill, Settings } from 'lucide-react-native';
 import { LocationService } from './src/services/LocationService';
 
 const Tab = createBottomTabNavigator();
@@ -31,11 +50,11 @@ const Stack = createStackNavigator();
 // CUSTOM TAB BAR ICONS (Unicode-based, no external lib needed)
 // ============================================================
 const TAB_ICONS = {
-  Home:     { active: '🏠', inactive: '🏡', label_es: 'Inicio',       label_en: 'Home' },
-  Coach:    { active: '🤖', inactive: '💬', label_es: 'Coach',        label_en: 'Coach' },
-  History:  { active: '📅', inactive: '📆', label_es: 'Historial',    label_en: 'History' },
-  Meds:     { active: '💊', inactive: '💊', label_es: 'Medicinas',    label_en: 'Meds' },
-  More:     { active: '⚙️', inactive: '⚙️', label_es: 'Más',          label_en: 'More' },
+  Home:     { IconComp: HomeIcon,     label_es: 'Inicio',       label_en: 'Home' },
+  Coach:    { IconComp: Bot,          label_es: 'Coach',        label_en: 'Coach' },
+  History:  { IconComp: CalendarDays, label_es: 'Historial',    label_en: 'History' },
+  Meds:     { IconComp: Pill,         label_es: 'Medicinas',    label_en: 'Meds' },
+  More:     { IconComp: Settings,     label_es: 'Más',          label_en: 'More' },
 };
 
 // ============================================================
@@ -52,8 +71,12 @@ function MoreStack() {
     >
       <Stack.Screen name="MoreMenu" component={MoreMenuScreen} options={{ title: 'Configuración' }} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Perfil' }} />
+      <Stack.Screen name="MiExpediente" component={MiExpedienteScreen} options={{ title: 'Mi Expediente' }} />
       <Stack.Screen name="PreventiveAlerts" component={PreventiveAlertsScreen} options={{ title: 'Alertas Preventivas', headerShown: false }} />
       <Stack.Screen name="DeviceSettings" component={DeviceSettingsScreen} options={{ title: 'Dispositivos' }} />
+      <Stack.Screen name="PrivacySettings" component={PrivacySettingsScreen} options={{ title: 'Privacidad' }} />
+      <Stack.Screen name="MyDoctors" component={MyDoctorsScreen} options={{ title: 'Mis Médicos' }} />
+      <Stack.Screen name="EmergencyCard" component={EmergencyCardScreen} options={{ title: 'Tarjeta de Emergencia' }} />
       <Stack.Screen name="About" component={AboutScreen} options={{ title: 'RmHealth' }} />
     </Stack.Navigator>
   );
@@ -61,15 +84,56 @@ function MoreStack() {
 
 // Simple More Menu
 function MoreMenuScreen({ navigation }) {
+  const { logout, user } = useAuth();
+
   const menuItems = [
-    { icon: '👤', label: 'Mi Perfil', screen: 'Profile' },
-    { icon: '🛡️', label: 'Alertas Preventivas', screen: 'PreventiveAlerts' },
-    { icon: '⌚', label: 'Dispositivos / Relojes', screen: 'DeviceSettings' },
-    { icon: 'ℹ️', label: 'Acerca de RmHealth', screen: 'About' },
+    { IconComp: User, label: 'Mi Perfil', screen: 'Profile' },
+    { IconComp: FileText, label: 'Mi Expediente', screen: 'MiExpediente' },
+    { IconComp: ShieldAlert, label: 'Alertas Preventivas', screen: 'PreventiveAlerts' },
+    { IconComp: Watch, label: 'Dispositivos / Relojes', screen: 'DeviceSettings' },
+    { IconComp: Lock, label: 'Privacidad y Datos', screen: 'PrivacySettings' },
+    { IconComp: Stethoscope, label: 'Mis Médicos', screen: 'MyDoctors' },
+    { IconComp: CreditCard, label: 'Tarjeta de Emergencia', screen: 'EmergencyCard' },
+    { IconComp: Info, label: 'Acerca de RmHealth', screen: 'About' },
   ];
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Cerrar Sesión',
+      '¿Estás seguro de que deseas cerrar sesión?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Cerrar Sesión', style: 'destructive', onPress: () => logout() },
+      ]
+    );
+  };
+
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.background, padding: 16 }}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: COLORS.background }}
+      contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* User info */}
+      {user && (
+        <View style={{
+          backgroundColor: COLORS.surface, padding: 16, borderRadius: 14,
+          marginBottom: 16, borderWidth: 1, borderColor: COLORS.border,
+          flexDirection: 'row', alignItems: 'center',
+        }}>
+          <View style={{
+            width: 44, height: 44, borderRadius: 22, backgroundColor: '#E0F2F1',
+            justifyContent: 'center', alignItems: 'center', marginRight: 12,
+          }}>
+            <User size={24} color="#1B7A6E" strokeWidth={2} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.text }}>{user.full_name}</Text>
+            <Text style={{ fontSize: 13, color: '#64748B' }}>{user.email}</Text>
+          </View>
+        </View>
+      )}
+
       {menuItems.map((item, i) => (
         <TouchableOpacity
           key={i}
@@ -80,12 +144,27 @@ function MoreMenuScreen({ navigation }) {
           }}
           onPress={() => navigation.navigate(item.screen)}
         >
-          <Text style={{ fontSize: 24, marginRight: 14 }}>{item.icon}</Text>
+          <item.IconComp size={22} color="#1B7A6E" strokeWidth={2} style={{ marginRight: 14 }} />
           <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text, flex: 1 }}>{item.label}</Text>
           <Text style={{ fontSize: 18, color: '#94A3B8' }}>›</Text>
         </TouchableOpacity>
       ))}
-    </View>
+
+      {/* Logout Button */}
+      <TouchableOpacity
+        style={{
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+          backgroundColor: '#FEF2F2', padding: 16, borderRadius: 14,
+          marginTop: 20, borderWidth: 1, borderColor: '#FECACA',
+        }}
+        onPress={handleLogout}
+        accessibilityLabel="Cerrar sesión"
+        accessibilityRole="button"
+      >
+        <LogOut size={20} color="#DC2626" strokeWidth={2} style={{ marginRight: 10 }} />
+        <Text style={{ fontSize: 16, fontWeight: '800', color: '#DC2626' }}>Cerrar Sesión</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
@@ -202,51 +281,219 @@ function LegalGate({ children }) {
 }
 
 
+// ============================================================
+// CONSENT GATE — Granular data consent (M2)
+// ============================================================
+function ConsentGate({ children }) {
+  const { accessToken, user } = useAuth();
+  const [consentsDone, setConsentsDone] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkConsents = async () => {
+      if (!accessToken || !user?.id) {
+        setConsentsDone(false);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Check if user already has consents saved
+        const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
+          || 'https://rmhealth-api-292048010515.us-central1.run.app/api';
+
+        const res = await fetch(`${API_BASE}/users/${user.id}/consents`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const hasVitalSignsConsent = data.consents?.vital_signs?.accepted === true;
+          setConsentsDone(hasVitalSignsConsent);
+        } else {
+          // If 404 or error, show consent screen
+          setConsentsDone(false);
+        }
+      } catch (e) {
+        console.warn('[ConsentGate] Check failed:', e);
+        setConsentsDone(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkConsents();
+  }, [accessToken, user]);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  if (!consentsDone) {
+    return <ConsentOnboardingScreen onComplete={() => setConsentsDone(true)} />;
+  }
+
+  return children;
+}
+
+
+// ============================================================
+// AUTH GATE — Blocks app until user is authenticated (M1)
+// ============================================================
+function AuthGate({ children }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [authScreen, setAuthScreen] = useState('login'); // 'login' | 'register' | '2fa'
+  const [pending2FAUserId, setPending2FAUserId] = useState(null);
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    if (authScreen === 'register') {
+      return (
+        <RegisterScreen
+          onNavigateLogin={() => setAuthScreen('login')}
+          onRegister2FA={(userId) => {
+            setPending2FAUserId(userId);
+            setAuthScreen('2fa');
+          }}
+        />
+      );
+    }
+
+    if (authScreen === '2fa' && pending2FAUserId) {
+      return (
+        <TwoFactorScreen
+          userId={pending2FAUserId}
+          onSuccess={() => {
+            // Auth context will update isAuthenticated automatically
+          }}
+          onBack={() => {
+            setPending2FAUserId(null);
+            setAuthScreen('login');
+          }}
+        />
+      );
+    }
+
+    return (
+      <LoginScreen
+        onNavigateRegister={() => setAuthScreen('register')}
+        onNavigateForgot={() => {
+          // For now, show alert. Full forgot-password flow in next iteration.
+          import('react-native').then(({ Alert }) => {
+            Alert.alert(
+              'Recuperar Contraseña',
+              'Enviaremos un código de recuperación a tu correo registrado.',
+              [{ text: 'OK' }]
+            );
+          });
+        }}
+        onLogin2FA={(userId) => {
+          setPending2FAUserId(userId);
+          setAuthScreen('2fa');
+        }}
+      />
+    );
+  }
+
+  return children;
+}
+
+
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+
+function MainNavigator() {
+  const { tr } = useLanguage();
+  const { isHighContrast, colors } = useTheme();
+
+  return (
+    <NavigationContainer>
+      <StatusBar barStyle={isHighContrast ? "light-content" : "dark-content"} backgroundColor={colors.background} translucent={false} />
+      <Tab.Navigator
+        screenOptions={({ route }) => ({
+          headerShown: false,
+          tabBarIcon: ({ focused }) => {
+            const icon = TAB_ICONS[route.name];
+            const color = focused ? colors.primary : colors.navInactive;
+            return (
+              <View style={focused ? tabStyles.iconContainerActive : tabStyles.iconContainer}>
+                <icon.IconComp size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
+              </View>
+            );
+          },
+          tabBarLabel: ({ focused }) => {
+            const icon = TAB_ICONS[route.name];
+            const labelKey = `nav_${route.name.toLowerCase()}`;
+            return (
+              <Text style={[tabStyles.label, focused && tabStyles.labelActive, { color: focused ? colors.primary : colors.navInactive }]}>
+                {tr(labelKey)}
+              </Text>
+            );
+          },
+          tabBarButton: (props) => {
+            const labelKey = `nav_${route.name.toLowerCase()}`;
+            return (
+              <TouchableOpacity
+                {...props}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel={tr(labelKey)}
+                activeOpacity={0.8}
+              />
+            );
+          },
+          tabBarStyle: [
+            tabStyles.bar, 
+            { display: route.name === 'Coach' ? 'none' : 'flex', backgroundColor: colors.surface, borderTopColor: colors.border },
+            isHighContrast && { borderTopWidth: 2 }
+          ],
+          tabBarHideOnKeyboard: true,
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.navInactive,
+          tabBarVisibilityAnimationConfig: {
+            show: { animation: 'timing', config: { duration: 0 } },
+            hide: { animation: 'timing', config: { duration: 0 } }
+          }
+        })}
+      >
+        <Tab.Screen name="Home" component={HomeScreen} />
+        <Tab.Screen name="Coach" component={AssistantScreen} />
+        <Tab.Screen name="History" component={HistoryScreen} />
+        <Tab.Screen name="Meds" component={MedicationScreen} />
+        <Tab.Screen name="More" component={MoreStack} />
+      </Tab.Navigator>
+    </NavigationContainer>
+  );
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
-      <LanguageProvider>
-        <LegalGate>
-          <NavigationContainer>
-            <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} translucent={false} />
-            <Tab.Navigator
-              screenOptions={({ route }) => ({
-                headerShown: false,
-                tabBarIcon: ({ focused }) => {
-                  const icon = TAB_ICONS[route.name];
-                  return (
-                    <View style={focused ? tabStyles.iconContainerActive : tabStyles.iconContainer}>
-                      <Text style={tabStyles.iconText}>{focused ? icon.active : icon.inactive}</Text>
-                    </View>
-                  );
-                },
-                tabBarLabel: ({ focused }) => {
-                  const icon = TAB_ICONS[route.name];
-                  return (
-                    <Text style={[tabStyles.label, focused && tabStyles.labelActive]}>
-                      {icon.label_es}
-                    </Text>
-                  );
-                },
-                tabBarStyle: [tabStyles.bar, { display: route.name === 'Coach' ? 'none' : 'flex' }],
-                tabBarHideOnKeyboard: true,
-                tabBarActiveTintColor: '#000000',
-                tabBarInactiveTintColor: '#000000',
-                tabBarVisibilityAnimationConfig: {
-                  show: { animation: 'timing', config: { duration: 0 } },
-                  hide: { animation: 'timing', config: { duration: 0 } }
-                }
-              })}
-            >
-              <Tab.Screen name="Home" component={HomeScreen} />
-              <Tab.Screen name="Coach" component={AssistantScreen} />
-              <Tab.Screen name="History" component={HistoryScreen} />
-              <Tab.Screen name="Meds" component={MedicationScreen} />
-              <Tab.Screen name="More" component={MoreStack} />
-            </Tab.Navigator>
-          </NavigationContainer>
-        </LegalGate>
-      </LanguageProvider>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <AuthGate>
+                <LegalGate>
+                  <ConsentGate>
+                    <MainNavigator />
+                  </ConsentGate>
+                </LegalGate>
+              </AuthGate>
+            </AuthProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
     </ErrorBoundary>
   );
 }
@@ -279,9 +526,9 @@ const tabStyles = StyleSheet.create({
     fontSize: 22,
   },
   label: {
-    fontSize: 11, fontWeight: '900', color: '#000000', marginTop: 2,
+    fontSize: 13, fontWeight: '800', color: '#0F172A', marginTop: 2,
   },
   labelActive: {
-    color: '#000000', fontWeight: '900',
+    color: '#1B7A6E', fontWeight: '900',
   },
 });

@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FAQ from '../data/health_faq.json';
 
-const DISCLAIMER_ES = '\n\n💡 Esta información refleja patrones en tus datos. Consulta a tu médico para cualquier decisión sobre tu salud.';
-const DISCLAIMER_EN = '\n\n💡 This information reflects patterns in your data. Consult your doctor for any health decisions.';
+const DISCLAIMER_ES = '\n\nEsta información refleja patrones en tus datos. Consulta a tu médico para cualquier decisión sobre tu salud.';
+const DISCLAIMER_EN = '\n\nThis information reflects patterns in your data. Consult your doctor for any health decisions.';
 
 /**
  * LocalWellnessEngine — Phase 1 AI assistant.
@@ -44,14 +44,14 @@ export class LocalWellnessEngine {
     // 4. Greeting
     if (this._matchesIntent(input, ['hola', 'hello', 'hi', 'hey', 'buenos', 'buenas', 'good morning', 'good night'])) {
       return lang === 'en'
-        ? '👋 Hello! I\'m your wellness coach. You can ask me about your health metrics, medications, or say "summary" to see your weekly report.'
-        : '👋 ¡Hola! Soy tu coach de bienestar. Puedes preguntarme sobre tus métricas de salud, medicamentos, o escribe "resumen" para ver tu reporte semanal.';
+        ? 'Hello! I\'m your wellness coach. You can ask me about your health metrics, medications, or say "summary" to see your weekly report.'
+        : '¡Hola! Soy tu coach de bienestar. Puedes preguntarme sobre tus métricas de salud, medicamentos, o escribe "resumen" para ver tu reporte semanal.';
     }
 
     // 5. Default fallback
     return lang === 'en'
-      ? '🤔 I\'m not sure I understand. Try asking about:\n\n• Blood pressure\n• Heart rate\n• Glucose\n• Oxygen\n• Temperature\n• Medications\n• "Summary" for your weekly report\n\nOr ask "How does the app work?"' + disclaimer
-      : '🤔 No estoy seguro de entender. Intenta preguntar sobre:\n\n• Presión arterial\n• Frecuencia cardíaca\n• Glucosa\n• Oxígeno\n• Temperatura\n• Medicamentos\n• "Resumen" para tu reporte semanal\n\nO pregunta "¿Cómo funciona la app?"' + disclaimer;
+      ? 'I\'m not sure I understand. Try asking about:\n\n• Blood pressure\n• Heart rate\n• Glucose\n• Oxygen\n• Temperature\n• Medications\n• "Summary" for your weekly report\n\nOr ask "How does the app work?"' + disclaimer
+      : 'No estoy seguro de entender. Intenta preguntar sobre:\n\n• Presión arterial\n• Frecuencia cardíaca\n• Glucosa\n• Oxígeno\n• Temperatura\n• Medicamentos\n• "Resumen" para tu reporte semanal\n\nO pregunta "¿Cómo funciona la app?"' + disclaimer;
   }
 
   // ── FAQ MATCHING ──
@@ -85,8 +85,8 @@ export class LocalWellnessEngine {
       const raw = await AsyncStorage.getItem('@rmhealth_vitals_history');
       if (!raw) {
         return lang === 'en'
-          ? '📊 No records yet. Start by entering your health metrics on the home screen.'
-          : '📊 Aún no hay registros. Comienza ingresando tus métricas en la pantalla principal.';
+          ? 'No records yet. Start by entering your health metrics on the home screen.'
+          : 'Aún no hay registros. Comienza ingresando tus métricas en la pantalla principal.';
       }
 
       const records = JSON.parse(raw);
@@ -96,8 +96,8 @@ export class LocalWellnessEngine {
 
       if (recent.length === 0) {
         return lang === 'en'
-          ? '📊 No records in the last 7 days. Try to record your metrics daily for better pattern detection.'
-          : '📊 No hay registros en los últimos 7 días. Intenta registrar tus métricas diariamente para mejor detección de patrones.';
+          ? 'No records in the last 7 days. Try to record your metrics daily for better pattern detection.'
+          : 'No hay registros en los últimos 7 días. Intenta registrar tus métricas diariamente para mejor detección de patrones.';
       }
 
       // Calculate averages
@@ -111,32 +111,32 @@ export class LocalWellnessEngine {
       const anomalies = recent.filter(r => r.tipo_emergencia && r.tipo_emergencia !== 'NORMAL');
 
       if (lang === 'en') {
-        return `📊 **Your 7-Day Wellness Summary**\n\n` +
-          `📅 Records: ${recent.length}\n` +
-          `❤️ Avg Heart Rate: ${avg(hrs)} bpm\n` +
-          `🩸 Avg Blood Pressure: ${avg(sys)}/${avg(dia)} mmHg\n` +
-          `🍬 Avg Glucose: ${avg(glu)} mg/dL\n` +
-          `🫁 Avg SpO2: ${avg(spo)}%\n` +
-          `⚠️ Unusual patterns: ${anomalies.length}\n\n` +
+        return `**Your 7-Day Wellness Summary**\n\n` +
+          `Records: ${recent.length}\n` +
+          `Avg Heart Rate: ${avg(hrs)} bpm\n` +
+          `Avg Blood Pressure: ${avg(sys)}/${avg(dia)} mmHg\n` +
+          `Avg Glucose: ${avg(glu)} mg/dL\n` +
+          `Avg SpO2: ${avg(spo)}%\n` +
+          `Unusual patterns: ${anomalies.length}\n\n` +
           (anomalies.length > 0
             ? `You had ${anomalies.length} record(s) with metrics outside the usual range. Check your History for details.`
-            : `All your metrics have been within the usual range. Keep it up! 💪`);
+            : `All your metrics have been within the usual range. Keep it up!`);
       }
 
-      return `📊 **Tu Resumen de Bienestar (7 días)**\n\n` +
-        `📅 Registros: ${recent.length}\n` +
-        `❤️ Pulso promedio: ${avg(hrs)} bpm\n` +
-        `🩸 Presión promedio: ${avg(sys)}/${avg(dia)} mmHg\n` +
-        `🍬 Glucosa promedio: ${avg(glu)} mg/dL\n` +
-        `🫁 SpO2 promedio: ${avg(spo)}%\n` +
-        `⚠️ Patrones inusuales: ${anomalies.length}\n\n` +
+      return `**Tu Resumen de Bienestar (7 días)**\n\n` +
+        `Registros: ${recent.length}\n` +
+        `Pulso promedio: ${avg(hrs)} bpm\n` +
+        `Presión promedio: ${avg(sys)}/${avg(dia)} mmHg\n` +
+        `Glucosa promedio: ${avg(glu)} mg/dL\n` +
+        `SpO2 promedio: ${avg(spo)}%\n` +
+        `Patrones inusuales: ${anomalies.length}\n\n` +
         (anomalies.length > 0
           ? `Tuviste ${anomalies.length} registro(s) con métricas fuera del rango habitual. Revisa tu Historial para más detalles.`
-          : `Todas tus métricas han estado dentro del rango habitual. ¡Sigue así! 💪`);
+          : `Todas tus métricas han estado dentro del rango habitual. ¡Sigue así!`);
     } catch (e) {
       return lang === 'en'
-        ? '⚠️ Could not read your history. Try again later.'
-        : '⚠️ No se pudo leer tu historial. Intenta de nuevo.';
+        ? 'Could not read your history. Try again later.'
+        : 'No se pudo leer tu historial. Intenta de nuevo.';
     }
   }
 
@@ -146,8 +146,8 @@ export class LocalWellnessEngine {
       const raw = await AsyncStorage.getItem('@rmhealth/medications');
       if (!raw) {
         return lang === 'en'
-          ? '💊 No medications registered. Add your medications in the Medications tab.'
-          : '💊 No hay medicamentos registrados. Agrega tus medicamentos en la pestaña Medicinas.';
+          ? 'No medications registered. Add your medications in the Medications tab.'
+          : 'No hay medicamentos registrados. Agrega tus medicamentos en la pestaña Medicinas.';
       }
 
       const meds = JSON.parse(raw);
@@ -165,24 +165,24 @@ export class LocalWellnessEngine {
       }
 
       if (lang === 'en') {
-        return `💊 **Medication Status Today**\n\n` +
-          `✅ Taken: ${taken}/${total}\n` +
-          `📊 Adherence: ${total > 0 ? ((taken / total) * 100).toFixed(0) : 0}%\n\n` +
+        return `**Medication Status Today**\n\n` +
+          `Taken: ${taken}/${total}\n` +
+          `Adherence: ${total > 0 ? ((taken / total) * 100).toFixed(0) : 0}%\n\n` +
           (taken === total
-            ? `Great job! All medications taken today. 🎉`
+            ? `Great job! All medications taken today.`
             : `You still have ${total - taken} medication(s) pending today.`);
       }
 
-      return `💊 **Estado de Medicamentos Hoy**\n\n` +
-        `✅ Tomados: ${taken}/${total}\n` +
-        `📊 Adherencia: ${total > 0 ? ((taken / total) * 100).toFixed(0) : 0}%\n\n` +
+      return `**Estado de Medicamentos Hoy**\n\n` +
+        `Tomados: ${taken}/${total}\n` +
+        `Adherencia: ${total > 0 ? ((taken / total) * 100).toFixed(0) : 0}%\n\n` +
         (taken === total
-          ? `¡Excelente! Todos los medicamentos tomados hoy. 🎉`
+          ? `Excelente! Todos los medicamentos tomados hoy.`
           : `Aún tienes ${total - taken} medicamento(s) pendiente(s) hoy.`);
     } catch (e) {
       return lang === 'en'
-        ? '⚠️ Could not read medication data.'
-        : '⚠️ No se pudo leer los datos de medicamentos.';
+        ? 'Could not read medication data.'
+        : 'No se pudo leer los datos de medicamentos.';
     }
   }
 

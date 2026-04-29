@@ -1,62 +1,190 @@
 {
-  "accuracy": 0.91875,
+  "model_version": "v2",
+  "accuracy": 0.9945,
+  "recall_critico": 0.992,
+  "deploy_approved": true,
   "classification_report": {
     "BAJO": {
-      "precision": 0.8855421686746988,
-      "recall": 0.91875,
-      "f1-score": 0.901840490797546,
-      "support": 640.0
-    },
-    "MEDIO": {
-      "precision": 0.8571428571428571,
-      "recall": 0.81,
-      "f1-score": 0.8329048843187661,
-      "support": 400.0
-    },
-    "ALTO": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 320.0
+      "support": 500.0
+    },
+    "MEDIO": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 500.0
+    },
+    "ALTO": {
+      "precision": 0.9919517102615694,
+      "recall": 0.986,
+      "f1-score": 0.9889669007021064,
+      "support": 500.0
     },
     "CRITICO": {
-      "precision": 1.0,
-      "recall": 0.9916666666666667,
-      "f1-score": 0.99581589958159,
-      "support": 240.0
+      "precision": 0.9860834990059643,
+      "recall": 0.992,
+      "f1-score": 0.9890329012961117,
+      "support": 500.0
     },
-    "accuracy": 0.91875,
+    "accuracy": 0.9945,
     "macro avg": {
-      "precision": 0.935671256454389,
-      "recall": 0.9301041666666666,
-      "f1-score": 0.9326403186744755,
-      "support": 1600.0
+      "precision": 0.9945088023168834,
+      "recall": 0.9944999999999999,
+      "f1-score": 0.9944999504995544,
+      "support": 2000.0
     },
     "weighted avg": {
-      "precision": 0.9185025817555937,
-      "recall": 0.91875,
-      "f1-score": 0.9183348023359484,
-      "support": 1600.0
+      "precision": 0.9945088023168833,
+      "recall": 0.9945,
+      "f1-score": 0.9944999504995545,
+      "support": 2000.0
     }
   },
-  "feature_importances": {
-    "heart_rate": 0.00711659239792539,
-    "spo2": 0.09526137260227499,
-    "bp_sys": 0.006156135239038251,
-    "bp_dia": 0.010683702998610784,
-    "glucose": 0.23194114235324106,
-    "temperature": 0.13552814655762047,
-    "age": 0.005027525307575738,
-    "pulse_pressure": 0.01426934103378584,
-    "mean_arterial_pressure": 0.10001478637639293,
-    "shock_index": 0.02803891303062088,
-    "hr_spo2_ratio": 0.01399362412426324,
-    "hr_deviation": 0.080400861044365,
-    "spo2_deviation": 0.10933704909231394,
-    "bp_deviation": 0.05719932872387614,
-    "glucose_deviation": 0.1050314791180954
+  "auc_roc_per_class": {
+    "BAJO": 1.0,
+    "MEDIO": 1.0,
+    "ALTO": 0.9998720000000001,
+    "CRITICO": 0.9998720000000001
   },
-  "n_samples": 8000,
+  "feature_importances": {
+    "heart_rate": 0.018354798639462447,
+    "spo2": 0.16983837141452102,
+    "bp_sys": 0.0672194998751859,
+    "bp_dia": 0.01718112576152557,
+    "glucose": 0.10001161319449163,
+    "temperature": 0.10238592088300716,
+    "age": 0.00044173514703183594,
+    "pulse_pressure": 0.0008577465947215967,
+    "mean_arterial_pressure": 0.05508710569569979,
+    "shock_index": 0.011985196376250286,
+    "hr_spo2_ratio": 0.2304659989006808,
+    "hr_deviation": 0.05235755124509343,
+    "spo2_deviation": 0.0991512660960127,
+    "bp_deviation": 0.04951352000159067,
+    "glucose_deviation": 0.025148550174725018
+  },
+  "confusion_matrix": [
+    [
+      500,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      500,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      493,
+      7
+    ],
+    [
+      0,
+      0,
+      4,
+      496
+    ]
+  ],
+  "n_samples_train": 8000,
+  "n_samples_test": 2000,
   "n_features": 15,
-  "model_path": "D:\\RMHealth_Ecosystem\\models\\triage_classifier.joblib"
+  "hyperparameters": {
+    "n_estimators": 400,
+    "max_depth": 5,
+    "learning_rate": 0.08,
+    "subsample": 0.8
+  },
+  "class_weights": {
+    "0": 1.0,
+    "1": 1.5,
+    "2": 2.0,
+    "3": 3.0
+  },
+  "clinical_cases": [
+    {
+      "case": "Caso A",
+      "prediction": "ALTO",
+      "confidence": 0.9993443642346871,
+      "expected": [
+        "ALTO",
+        "CRITICO"
+      ],
+      "passed": true,
+      "probabilities": {
+        "BAJO": 5.756593273787159e-13,
+        "MEDIO": 1.3366770063897045e-12,
+        "ALTO": 0.9993443642346871,
+        "CRITICO": 0.0006556357634006586
+      }
+    },
+    {
+      "case": "Caso B",
+      "prediction": "MEDIO",
+      "confidence": 0.9999998749440141,
+      "expected": [
+        "MEDIO",
+        "ALTO",
+        "CRITICO"
+      ],
+      "passed": true,
+      "probabilities": {
+        "BAJO": 4.807832489299212e-17,
+        "MEDIO": 0.9999998749440141,
+        "ALTO": 1.2463513543325986e-07,
+        "CRITICO": 4.20850326484802e-10
+      }
+    },
+    {
+      "case": "Caso C",
+      "prediction": "CRITICO",
+      "confidence": 0.9990013659394188,
+      "expected": [
+        "CRITICO"
+      ],
+      "passed": true,
+      "probabilities": {
+        "BAJO": 8.040503378166614e-14,
+        "MEDIO": 1.8100775248116724e-13,
+        "ALTO": 0.000998634060319678,
+        "CRITICO": 0.9990013659394188
+      }
+    },
+    {
+      "case": "Caso D",
+      "prediction": "BAJO",
+      "confidence": 0.9999998880094733,
+      "expected": [
+        "BAJO"
+      ],
+      "passed": true,
+      "probabilities": {
+        "BAJO": 0.9999998880094733,
+        "MEDIO": 1.119891985552772e-07,
+        "ALTO": 1.3217895354705403e-12,
+        "CRITICO": 6.420437761879759e-15
+      }
+    },
+    {
+      "case": "Caso E (RAÚL)",
+      "prediction": "CRITICO",
+      "confidence": 0.999969255158084,
+      "expected": [
+        "CRITICO"
+      ],
+      "passed": true,
+      "probabilities": {
+        "BAJO": 7.443690612702193e-14,
+        "MEDIO": 1.758537702590346e-13,
+        "ALTO": 3.074484166579419e-05,
+        "CRITICO": 0.999969255158084
+      }
+    }
+  ],
+  "clinical_cases_passed": true
 }

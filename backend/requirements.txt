@@ -7,3 +7,6 @@ requests==2.32.3
 scikit-learn==1.6.1
 numpy==2.2.5
 joblib==1.4.2
+bcrypt==4.3.0
+sendgrid==6.11.0
+reportlab==4.4.0
