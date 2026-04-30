@@ -1,17 +1,14 @@
-# ── Python ─────────────────────────────────────────────────────
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-dist/
-build/
-.venv/
-venv/
+# ==============================================================
+# RmHealth — .gitignore
+# Repositorio local. NO hacer push con credenciales.
+# Última actualización: v2.5.4 Stable
+# ==============================================================
 
-# ── Credenciales y secretos (NUNCA a GitHub) ───────────────────
+# ─── Credenciales y secretos (NUNCA a GitHub) ────────────────
 .env
 .env.*
 *.env
+!.env.example
 backend/.env
 rmhealth_mobile/.env
 local.settings.json
@@ -20,40 +17,88 @@ local.settings.json
 google-services.json
 GoogleService-Info.plist
 backup_env_vars*.yaml
+secret*.json
+token*.json
+private*.key
 
-# ── Keystores y certificados (privados) ────────────────────────
+# ─── Keystores y certificados (privados) ─────────────────────
 *.keystore
 *.jks
 *.p12
 *.pem
+*.key
+*.crt
+# EXCEPCIÓN: debug.keystore no va a git en ningún caso
+rmhealth_mobile/android/app/debug.keystore
 
-# ── Modelos ML (binarios grandes — viven en GCS) ───────────────
+# ─── Carpetas locales de seguridad (nunca a GitHub) ──────────
+rmhealth-backups/
+rmhealth-secrets/
+rmhealth-releases/
+rmhealth-docs/
+rmhealth-app/
+
+# ─── APKs de release (binarios grandes) ──────────────────────
+Apk/
+*.apk
+
+# ─── Crash logs y diagnóstico ────────────────────────────────
+crash_log.txt
+crash_*.txt
+crash_*.log
+*.crash
+
+# ─── Modelos ML (binarios grandes — viven en GCS) ────────────
 *.joblib
 *.pkl
 *.pickle
 models/
 backend/models/
 
-# ── IDEs ────────────────────────────────────────────────────────
-.idea/
-.vscode/
+# ─── Python ──────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+vertex_training/.venv_train/
 
-# ── Logs ────────────────────────────────────────────────────────
-*.log
-
-# ── Node / React Native ─────────────────────────────────────────
+# ─── Node / React Native ─────────────────────────────────────
 node_modules/
 rmhealth_mobile/node_modules/
 rmhealth_mobile/.expo/
+rmhealth_mobile/.metro-cache/
+rmhealth_mobile/.turbo/
+
+# ─── Android build artifacts ─────────────────────────────────
 rmhealth_mobile/android/.gradle/
 rmhealth_mobile/android/app/build/
 rmhealth_mobile/android/build/
+
+# ─── iOS build artifacts ─────────────────────────────────────
 rmhealth_mobile/ios/Pods/
+rmhealth_mobile/ios/build/
+rmhealth_mobile/ios/DerivedData/
 
-# ── Backups locales ─────────────────────────────────────────────
-backups/
-*.bak
+# ─── IDEs ─────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
 
-# ── Temporales ──────────────────────────────────────────────────
+# ─── Logs ─────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+metro-bundler.log*
+
+# ─── Temporales ──────────────────────────────────────────────
 *.tmp
 *.temp
+*.bak
+backups/
+
+# ─── Backups de sesiones anteriores ──────────────────────────
+rmhealth_mobile/android/app/build/kotlin/
