@@ -2,12 +2,12 @@
 $azdPath = "$env:LOCALAPPDATA\Programs\Azure Dev CLI\azd.exe"
 
 if (Test-Path $azdPath) {
-    Write-Host "🚀 Starting RM AI Q deployment..."
+    Write-Host "🚀 Starting RMHealth deployment..."
     Write-Host "Path: $azdPath"
     Write-Host "----------------------------------------"
     Write-Host "⚠️  Follow the interactive prompts:"
     Write-Host "1. Log in to Azure (if asked)"
-    Write-Host "2. Enter a valid environment name (e.g., 'rmaiq-prod')"
+    Write-Host "2. Enter a valid environment name (e.g., 'rmhealth-prod')"
     Write-Host "3. Select your subscription"
     Write-Host "4. Select a location (e.g., 'eastus2')"
     Write-Host "----------------------------------------"
