@@ -44,7 +44,11 @@
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
         "SCHEDULE_EXACT_ALARM",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "android.permission.health.READ_HEART_RATE",
+        "android.permission.health.READ_OXYGEN_SATURATION",
+        "android.permission.health.READ_BODY_TEMPERATURE",
+        "android.permission.health.READ_BLOOD_PRESSURE"
       ]
     },
     "web": {

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from 'r
 import { useLanguage } from '../contexts/LanguageContext';
 import { ClinicalDisclaimer } from '../components/ClinicalDisclaimer';
 import { COLORS, SPACING } from '../theme';
+import { APP_VERSION, APP_BUILD_TAG } from '../config/appVersion';
 
 /**
  * AboutScreen — Regulatory-compliant app information.
@@ -13,7 +14,7 @@ export function AboutScreen() {
 
   const rows = [
     { label: tr('about_name'), value: 'RmHealth' },
-    { label: tr('about_version'), value: '2.0.0' },
+    { label: tr('about_version'), value: APP_VERSION },
     { label: tr('about_developer'), value: 'Raúl Morales Zepeda' },
     { label: tr('about_contact'), value: 'contacto@rmhealth.ai' },
     { label: tr('about_indautor'), value: '03-2025-070109072500-01' },
@@ -33,7 +34,7 @@ export function AboutScreen() {
           <Text style={styles.logoText}>RM</Text>
         </View>
         <Text style={styles.appName}>RmHealth</Text>
-        <Text style={styles.appTag}>v2.0.0</Text>
+        <Text style={styles.appTag}>{APP_BUILD_TAG}</Text>
       </View>
 
       {rows.map(({ label, value }) => (

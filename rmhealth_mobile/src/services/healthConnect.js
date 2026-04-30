@@ -15,11 +15,18 @@
  * @module services/healthConnect
  */
 
-import {
-  initialize,
-  requestPermission,
-  readRecords,
-} from 'react-native-health-connect';
+// Lazy load — evita crash nativo si el módulo no está enlazado.
+// Este archivo está deshabilitado (FEATURES.HEALTH_CONNECT_ENABLED = false).
+// Reactivar cuando HC sea compatible con New Architecture.
+let _HC = null;
+try {
+  _HC = require('react-native-health-connect');
+} catch {
+  // Módulo no disponible — todas las funciones devuelven null/false
+}
+const initialize       = _HC?.initialize       ?? (() => Promise.resolve(false));
+const requestPermission = _HC?.requestPermission ?? (() => Promise.resolve([]));
+const readRecords       = _HC?.readRecords       ?? (() => Promise.resolve({ records: [] }));
 
 // Record types that RMHealth needs from the smartwatch
 const REQUIRED_PERMISSIONS = [

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet, View, Text, ScrollView, TouchableOpacity,
   TextInput, Alert, ActivityIndicator, KeyboardAvoidingView,
@@ -14,7 +14,8 @@ import { LocalHistoryService } from '../services/LocalHistoryService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LocationService } from '../services/LocationService';
 import { CriticalAlertModal } from '../components/CriticalAlertModal';
-import { Heart, Wind, Activity, Droplets, Thermometer, Building2, AlertTriangle } from 'lucide-react-native';
+import { Heart, Wind, Activity, Droplets, Thermometer, Building2, AlertTriangle, Watch } from 'lucide-react-native';
+import { useWatchData } from '../hooks/useWatchData';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -34,6 +35,10 @@ export const HomeScreen = () => {
   const [glucosa, setGlucosa] = useState('');
   const [temp, setTemp] = useState('36.6');
   const [contexto, setContexto] = useState('reposo');
+  // Galaxy Watch 8 — source tracking per field
+  const [watchSource, setWatchSource] = useState({ fc: false, spo2: false, temp: false });
+  const lastWatchTsRef      = useRef(null);
+  const handleSendVitalsRef = useRef(null);
 
   // --- API response state ---
   const [sending, setSending] = useState(false);
@@ -50,6 +55,30 @@ export const HomeScreen = () => {
     };
     loadProfile();
   }, []);
+
+  // ── Health Connect — Galaxy Watch 8 ──────────────────────────
+  const { watchData, isWatchAvailable } = useWatchData();
+
+  // Auto-fill cuando llegan datos nuevos del reloj
+  useEffect(() => {
+    if (!watchData) return;
+    if (watchData.timestamp === lastWatchTsRef.current) return;
+    lastWatchTsRef.current = watchData.timestamp;
+
+    const newSource = { fc: false, spo2: false, temp: false };
+    if (watchData.fc != null)          { setHeartRate(String(watchData.fc));     newSource.fc   = true; }
+    if (watchData.spo2 != null)        { setSpo2(String(watchData.spo2));        newSource.spo2 = true; }
+    if (watchData.temperatura != null) { setTemp(String(watchData.temperatura)); newSource.temp = true; }
+    // BP: fluye automáticamente cuando el reloj esté calibrado — sin cambios de código
+    if (watchData.tas != null) setBpSys(String(watchData.tas));
+    if (watchData.tad != null) setBpDia(String(watchData.tad));
+    setWatchSource(newSource);
+
+    // Auto-análisis solo cuando FC + SpO2 llegan del reloj
+    if (watchData.fc != null && watchData.spo2 != null) {
+      setTimeout(() => handleSendVitalsRef.current?.(), 800);
+    }
+  }, [watchData]);
 
     const [statusMsg, setStatusMsg] = useState('');
 
@@ -137,6 +166,8 @@ export const HomeScreen = () => {
         setStatusMsg('');
       }
     };
+    // Mantiene ref sincronizada para que el auto-fill pueda invocarla
+    handleSendVitalsRef.current = handleSendVitals;
 
   const handleManualSOS = async () => {
     try {
@@ -302,6 +333,15 @@ export const HomeScreen = () => {
               ))}
             </ScrollView>
 
+            {/* Badge Galaxy Watch 8 — visible solo con datos del reloj */}
+            {(watchSource.fc || watchSource.spo2 || watchSource.temp) && (
+              <View style={s.watchBadge}>
+                <Watch size={12} color="#0D9488" strokeWidth={2} />
+                <Text style={s.watchBadgeText}>
+                  Galaxy Watch 8 · {isWatchAvailable ? (language === 'en' ? 'Live' : 'En vivo') : '--'}
+                </Text>
+              </View>
+            )}
             <View style={s.inputRow}>
               <VitalInput label={tr('vital_heart_rate')} value={heartRate} onChange={setHeartRate} placeholder="72" IconComponent={Heart} iconColor="#EF4444" rangeKey="heartRate" context={contexto} language={language} accessibilityLabel={language === 'en' ? 'Heart rate in beats per minute' : 'Frecuencia cardíaca en latidos por minuto'} />
               <VitalInput label={tr('vital_spo2')} value={spo2} onChange={setSpo2} placeholder="98" IconComponent={Wind} rangeKey="spo2" context={contexto} language={language} accessibilityLabel={language === 'en' ? 'Oxygen saturation percentage' : 'Porcentaje de saturación de oxígeno'} />
@@ -368,7 +408,7 @@ export const HomeScreen = () => {
                   <Text style={s.modelBadge}>
                     GradientBoosting · {mlTriage.accuracy != null
                       ? `${(mlTriage.accuracy * 100).toFixed(1)}%`
-                      : '99.4%'} accuracy · Vertex AI v2
+                      : '99.4%'} accuracy · Vertex AI v4
                   </Text>
                 </View>
               )}
@@ -578,4 +618,12 @@ const s = StyleSheet.create({
   contextPillTextActive: {
     color: COLORS.primary,
   },
+  // Galaxy Watch 8 badge
+  watchBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#E0F2F1', borderRadius: 8,
+    paddingVertical: 5, paddingHorizontal: 10, marginBottom: 10,
+    alignSelf: 'flex-start', borderWidth: 1, borderColor: '#0D9488' + '40',
+  },
+  watchBadgeText: { fontSize: 11, fontWeight: '700', color: '#0D9488' },
 });

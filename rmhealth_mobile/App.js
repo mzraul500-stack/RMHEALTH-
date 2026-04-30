@@ -2,7 +2,7 @@ import React, { useState, useEffect, Component } from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { StatusBar, ActivityIndicator, View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, Platform, Alert } from 'react-native';
+import { StatusBar, ActivityIndicator, View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, Platform, Alert, PermissionsAndroid } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Screens
@@ -42,6 +42,12 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { COLORS } from './src/theme';
 import { User, ShieldAlert, Watch, Lock, Stethoscope, CreditCard, Info, LogOut, FileText, Home as HomeIcon, Bot, CalendarDays, Pill, Settings } from 'lucide-react-native';
 import { LocationService } from './src/services/LocationService';
+import * as Notifications from 'expo-notifications';
+import { FEATURES } from './src/config/features';
+// requestWatchPermissions solo se importa si Health Connect está habilitado
+const requestWatchPermissions = FEATURES.HEALTH_CONNECT_ENABLED
+  ? require('./src/services/HealthConnectService').requestWatchPermissions
+  : async () => false;
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -248,13 +254,7 @@ function LegalGate({ children }) {
           LocationService.startBackgroundTracking();
         }
 
-        // 2. Request initial permissions (Non-blocking)
-        setTimeout(async () => {
-          await LocationService.requestPermissions();
-          // Also request notification permissions so they're not blocked by default
-          const { requestNotificationPermissions } = require('./src/services/NotificationService');
-          await requestNotificationPermissions();
-        }, 2000);
+        // Permisos gestionados por PermissionGate al iniciar la app
 
       } catch (e) {
         console.warn(e);
@@ -277,6 +277,67 @@ function LegalGate({ children }) {
   if (!termsOk) return <TermsScreen onAccept={() => setTermsOk(true)} />;
   if (!consentOk) return <InformedConsentScreen onAccept={() => setConsentOk(true)} />;
 
+  return children;
+}
+
+
+// ============================================================
+// PERMISSION GATE — Solicita permisos en background (no-bloqueante)
+// La app NUNCA se cierra por este gate — children siempre renderizan.
+// Flujo background: Notificaciones → Ubicación → Health Connect
+// ============================================================
+function PermissionGate({ children }) {
+  useEffect(() => {
+    const requestPerms = async () => {
+      try {
+        // 1. Notificaciones — solo Android 13+ (API 33+) tiene POST_NOTIFICATIONS
+        if (Platform.OS === 'android') {
+          const postNotiPerm = PermissionsAndroid?.PERMISSIONS?.POST_NOTIFICATIONS;
+          if (postNotiPerm) {
+            const result = await PermissionsAndroid.request(
+              postNotiPerm,
+              {
+                title: 'RMHealth necesita notificaciones',
+                message:
+                  'Las notificaciones son necesarias para alertarte en caso de emergencia médica.',
+                buttonPositive: 'Permitir',
+                buttonNegative: 'Ahora no',
+              }
+            );
+            if (result !== PermissionsAndroid.RESULTS.GRANTED) {
+              Alert.alert(
+                'Notificaciones desactivadas',
+                'Las notificaciones son necesarias para alertarte en caso de emergencia médica.\n\n'
+                + 'Puedes activarlas en Configuración → Aplicaciones → RMHealth.',
+                [{ text: 'Entendido' }]
+              );
+            }
+          }
+        } else {
+          await Notifications.requestPermissionsAsync().catch(() => {});
+        }
+
+        // 2. Ubicación — para ruteo de emergencias
+        await LocationService.requestPermissions().catch(() => {});
+
+        // 3. Health Connect — Galaxy Watch 8 (FC, SpO2, Temp, BP)
+        //    Solo se solicita si FEATURES.HEALTH_CONNECT_ENABLED = true
+        if (FEATURES.HEALTH_CONNECT_ENABLED) {
+          await requestWatchPermissions().catch(() => {});
+        }
+
+      } catch (e) {
+        // Silencioso — ningún error de permisos debe cerrar la app
+        console.warn('[PermissionGate]', e);
+      }
+    };
+
+    // Delay de 1.5s para no bloquear el render inicial
+    const timer = setTimeout(requestPerms, 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // children SIEMPRE renderizan — la app nunca se cierra por permisos
   return children;
 }
 
@@ -485,9 +546,11 @@ export default function App() {
             <AuthProvider>
               <AuthGate>
                 <LegalGate>
-                  <ConsentGate>
-                    <MainNavigator />
-                  </ConsentGate>
+                  <PermissionGate>
+                    <ConsentGate>
+                      <MainNavigator />
+                    </ConsentGate>
+                  </PermissionGate>
                 </LegalGate>
               </AuthGate>
             </AuthProvider>

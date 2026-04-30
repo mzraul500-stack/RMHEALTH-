@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { APP_VERSION_CODE } from '../config/appVersion';
 
 /**
  * AuditLogService — Compliance audit trail for regulatory requirements.
@@ -56,7 +57,7 @@ async function sha256(payload) {
  * @param {Object} [payload] - Optional data to hash (NOT stored raw)
  * @param {string} [appVersion] - App version string
  */
-export async function logAuditEvent(event, language = 'es', payload = null, appVersion = '2.0.0') {
+export async function logAuditEvent(event, language = 'es', payload = null, appVersion = APP_VERSION_CODE) {
   try {
     const raw = await AsyncStorage.getItem(AUDIT_KEY);
     const log = raw ? JSON.parse(raw) : [];

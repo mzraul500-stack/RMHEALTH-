@@ -9,6 +9,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../api/client';
 import { Heart, Wind, Activity, Droplets, Thermometer } from 'lucide-react-native';
+import { APP_VERSION_CODE } from '../config/appVersion';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -368,7 +369,7 @@ export const HistoryScreen = () => {
       }
       text += `   ${r.descripcion}\n\n`;
     });
-    text += `\nGenerado por RmHealth v2.0.0\n`;
+    text += `\nGenerado por RmHealth v${APP_VERSION_CODE}\n`;
     text += `Este reporte no constituye un diagnóstico médico.`;
     await Share.share({ message: text, title: txt.export_title });
   };
