@@ -102,3 +102,5 @@ backups/
 
 # ─── Backups de sesiones anteriores ──────────────────────────
 rmhealth_mobile/android/app/build/kotlin/
+# Vertex AI build artifacts
+vertex_training/dist/
