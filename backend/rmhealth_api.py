@@ -676,11 +676,19 @@ async def receive_vital_signs(data: VitalSigns, user=Depends(verify_token)):
             "contacto_emergencia_tel": data.patient_context.get("contacto_emergencia_tel", ""),
             "alergias": data.patient_context.get("alergias", [])
         }
-        db_available = False # Skip DB lookup if phone provides the truth
+        skip_db_lookup = True  # Phone context has priority — no DB profile query needed
+        # Still attempt DB connection so we can persist vital_signs / emergency_alerts
+        try:
+            conn = get_db_connection()
+            db_available = True
+            logger.info(f"DB connection available for persistence (context from phone): {data.usuario_id}")
+        except Exception as db_err:
+            db_available = False
+            logger.info(f"DB unavailable for persistence (ML-only mode): {db_err}")
     else:
         # --- PRIORITY 2: Try to load patient profile from DB ---
+        skip_db_lookup = False
         db_available = False
-        conn = None
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
