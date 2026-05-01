@@ -37,7 +37,7 @@ const CLINICAL_RANGES = {
     unit: 'mmHg',
   },
   diastolic: {
-    normal: [60, 89],
+    normal: [60, 80],      // AHA: diastólica > 80 = Stage 1 — alineado con medical_engine.py
     warning: [40, 110],
     unit: 'mmHg',
   },

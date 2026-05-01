@@ -198,7 +198,7 @@ class MedicalEngine:
             # 120/80 NO activa (120 < 130 AND 80 no es > 80)
             # Pesos heurísticos sujetos a validación médica
             score += 8
-            factores.append(f"Hipertensión Etapa 1 ({sistolica}/{diastolica}) — AHA")
+            factores.append(f"Presión diastólica elevada ({diastolica} mmHg) — criterio AHA Stage 1")
 
         # Glucosa — ADA Standards of Medical Care 2024
         # Reference: American Diabetes Association, Diabetes Care 2024;47(Suppl.1)
