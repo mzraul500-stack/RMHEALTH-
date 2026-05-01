@@ -240,6 +240,23 @@ def get_db_connection():
         """
         )
 
+        # Columnas de ciclo de vida para close/cancel (ADD COLUMN IF NOT EXISTS es idempotente)
+        for _col in [
+            ("cerrado_por",        "TEXT"),
+            ("cerrado_en",         "TIMESTAMP WITH TIME ZONE"),
+            ("motivo_cierre",      "TEXT"),
+            ("cancelado_por",      "TEXT"),
+            ("cancelado_en",       "TIMESTAMP WITH TIME ZONE"),
+            ("motivo_cancelacion", "TEXT"),
+        ]:
+            try:
+                cursor.execute(
+                    f"ALTER TABLE emergency_alerts "
+                    f"ADD COLUMN IF NOT EXISTS {_col[0]} {_col[1]}"
+                )
+            except Exception:
+                pass
+
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS preventive_alerts (
@@ -3999,6 +4016,179 @@ async def get_record_corrections(record_type: str, record_id: str, user=Depends(
         if conn:
             try: conn.close()
             except: pass
+
+
+# ================================================================
+# PUNTO 3 — CONTROL DE ALERTAS DE EMERGENCIA
+# POST /api/emergencies/{id}/close
+# POST /api/emergencies/{id}/cancel
+# JWT obligatorio. Sin auto-cierre. Sin afectar Caso E.
+# ================================================================
+
+class EmergencyCloseRequest(BaseModel):
+    motivo: Optional[str] = None  # Opcional para cierre normal
+
+
+class EmergencyCancelRequest(BaseModel):
+    motivo: str = Field(..., min_length=5,
+                        description="Motivo obligatorio para cancelar (mín. 5 caracteres)")
+
+
+@app.post("/api/emergencies/{emergency_id}/close")
+async def close_emergency(
+    emergency_id: int,
+    body: EmergencyCloseRequest = EmergencyCloseRequest(),
+    user=Depends(verify_token),
+):
+    """
+    Cierra una alerta de emergencia activa.
+    - JWT obligatorio.
+    - Registra user_id, timestamp y motivo opcional.
+    - No permite cerrar si ya está cerrada o cancelada.
+    - No afecta Caso E ni endpoints existentes.
+    """
+    user_id = user.get("user_id", "unknown")
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Verificar existencia y estado actual
+        cursor.execute(
+            "SELECT id, estado, tipo_emergencia FROM emergency_alerts WHERE id = %s",
+            (emergency_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Alerta no encontrada")
+
+        alert_estado = row["estado"] if isinstance(row, dict) else row[1]
+        if alert_estado in ("cerrada", "cancelada"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"La alerta ya está en estado '{alert_estado}'"
+            )
+
+        # Cerrar la alerta
+        cursor.execute(
+            """UPDATE emergency_alerts
+               SET estado        = 'cerrada',
+                   cerrado_por   = %s,
+                   cerrado_en    = NOW(),
+                   motivo_cierre = %s
+             WHERE id = %s""",
+            (user_id, body.motivo, emergency_id)
+        )
+        conn.commit()
+        cursor.close()
+
+        logger.info(
+            "EMERGENCY CLOSED: alert_id=%s by user=%s motivo=%s",
+            emergency_id, user_id, body.motivo or "no especificado"
+        )
+        return {
+            "ok": True,
+            "emergency_id": emergency_id,
+            "estado": "cerrada",
+            "cerrado_por": user_id,
+            "motivo": body.motivo,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error closing emergency %s: %s", emergency_id, e)
+        raise HTTPException(status_code=500, detail="Error al cerrar la alerta")
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+@app.post("/api/emergencies/{emergency_id}/cancel")
+async def cancel_emergency(
+    emergency_id: int,
+    body: EmergencyCancelRequest,
+    user=Depends(verify_token),
+):
+    """
+    Cancela una alerta de emergencia activa.
+    - JWT obligatorio.
+    - motivo OBLIGATORIO siempre (min 5 caracteres — Pydantic).
+    - Alerta CRITICA: log de advertencia explícito.
+    - Registra user_id, timestamp y motivo.
+    - No permite cancelar si ya está cerrada o cancelada.
+    """
+    user_id = user.get("user_id", "unknown")
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Verificar existencia y estado actual
+        cursor.execute(
+            "SELECT id, estado, tipo_emergencia FROM emergency_alerts WHERE id = %s",
+            (emergency_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Alerta no encontrada")
+
+        alert_estado = row["estado"] if isinstance(row, dict) else row[1]
+        tipo = (row["tipo_emergencia"] if isinstance(row, dict) else row[2]) or ""
+
+        if alert_estado in ("cerrada", "cancelada"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"La alerta ya está en estado '{alert_estado}'"
+            )
+
+        # Guardia explícita para CRÍTICA — motivo ya es obligatorio por Pydantic,
+        # pero se registra warning adicional para auditoría
+        if "CRITIC" in tipo.upper() or "CRITICO" in tipo.upper():
+            logger.warning(
+                "CRITICAL EMERGENCY CANCELLED: alert_id=%s tipo=%s by user=%s motivo='%s'",
+                emergency_id, tipo, user_id, body.motivo
+            )
+
+        # Cancelar la alerta
+        cursor.execute(
+            """UPDATE emergency_alerts
+               SET estado             = 'cancelada',
+                   cancelado_por      = %s,
+                   cancelado_en       = NOW(),
+                   motivo_cancelacion = %s
+             WHERE id = %s""",
+            (user_id, body.motivo, emergency_id)
+        )
+        conn.commit()
+        cursor.close()
+
+        logger.info(
+            "EMERGENCY CANCELLED: alert_id=%s by user=%s motivo='%s'",
+            emergency_id, user_id, body.motivo
+        )
+        return {
+            "ok": True,
+            "emergency_id": emergency_id,
+            "estado": "cancelada",
+            "cancelado_por": user_id,
+            "motivo": body.motivo,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error cancelling emergency %s: %s", emergency_id, e)
+        raise HTTPException(status_code=500, detail="Error al cancelar la alerta")
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 # ================================================================
