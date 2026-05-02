@@ -14,9 +14,10 @@
 import { useState, useCallback } from 'react';
 import { FEATURES } from '../config/features';
 import {
-  requestWatchPermissions,
-  getLatestWatchData,
+  requestHeartRatePermission,
+  getLatestHeartRate,
 } from '../services/HealthConnectService';
+
 
 /**
  * @returns {{
@@ -57,25 +58,25 @@ export function useWatchData() {
     setIsLoading(true);
     setError(null);
     try {
-      // 1. Solicitar permisos (solo si es la primera vez)
-      const granted = await requestWatchPermissions();
+      // 1. Verificar disponibilidad + solicitar SOLO permiso Heart Rate
+      const granted = await requestHeartRatePermission();
       setPermissionsGranted(granted);
       setIsWatchAvailable(granted);
 
       if (!granted) {
-        setError('Permisos de Health Connect no concedidos. Abre Health Connect y autoriza RMHealth.');
+        setError('Permiso de frecuencia cardíaca no concedido o sin datos disponibles.');
         return;
       }
 
-      // 2. Leer FC (y SpO2/Temp si disponibles)
-      const data = await getLatestWatchData();
-      if (!data) {
+      // 2. Leer SOLO Frecuencia Cardíaca (no SpO2, no Temp, no BP)
+      const fc = await getLatestHeartRate();
+      if (fc === null) {
         setError('Sin datos recientes del reloj. Asegúrate de que el Galaxy Watch 8 esté sincronizado con Samsung Health.');
         return;
       }
 
-      // 3. Actualizar estado — HomeScreen reacciona vía useEffect(watchData)
-      setWatchData(data);
+      // 3. Actualizar estado con solo FC — HomeScreen lo carga en campo FC
+      setWatchData({ source: 'watch', fc, timestamp: new Date().toISOString(), deviceName: 'Galaxy Watch 8' });
       setLastSync(new Date().toISOString());
     } catch (e) {
       console.warn('[useWatchData] Error:', e);
@@ -84,6 +85,7 @@ export function useWatchData() {
       setIsLoading(false);
     }
   }, []);
+
 
   return {
     watchData,

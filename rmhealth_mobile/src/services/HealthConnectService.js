@@ -27,7 +27,7 @@ try {
 const BACKGROUND_SYNC_TASK = 'RMHEALTH_WATCH_SYNC';
 const DATA_WINDOW_HOURS    = 2; // leer últimas 2h
 
-// Permisos solicitados a Health Connect.
+// Permisos completos para sync futuro (SpO2, Temp, BP).
 // BloodPressure incluido para que fluya automáticamente cuando
 // el usuario calibre el reloj — sin cambios de código requeridos.
 const HC_PERMISSIONS = [
@@ -35,6 +35,12 @@ const HC_PERMISSIONS = [
   { accessType: 'read', recordType: 'OxygenSaturation' },
   { accessType: 'read', recordType: 'BodyTemperature'  },
   { accessType: 'read', recordType: 'BloodPressure'    }, // futuro-ready
+];
+
+// Permiso mínimo para el botón "Leer del Galaxy Watch 8" (Fase 1).
+// Solo Heart Rate — no SpO2, no Temp, no BP.
+const HC_HEART_RATE_ONLY = [
+  { accessType: 'read', recordType: 'HeartRate' },
 ];
 
 // ── Inicializar ─────────────────────────────────────────────────
@@ -50,7 +56,7 @@ async function initHealthConnect() {
   }
 }
 
-// ── Solicitar permisos ──────────────────────────────────────────
+// ── Solicitar permisos (completos — futuro) ─────────────────────
 export async function requestWatchPermissions() {
   if (!HC) return false;
   const available = await initHealthConnect();
@@ -60,6 +66,52 @@ export async function requestWatchPermissions() {
     return granted && granted.length > 0;
   } catch {
     return false;
+  }
+}
+
+// ── Solicitar SOLO permiso de Frecuencia Cardíaca ────────────────
+// Usado por el botón "Leer del Galaxy Watch 8" (Fase 1).
+// No solicita SpO2, temperatura ni presión arterial.
+export async function requestHeartRatePermission() {
+  if (!HC) return false;
+  const available = await initHealthConnect();
+  if (!available) return false;
+  try {
+    const granted = await HC.requestPermission(HC_HEART_RATE_ONLY);
+    // granted es array de permisos concedidos — verificar que contiene HeartRate
+    if (!granted || granted.length === 0) return false;
+    return granted.some(
+      (p) => p.recordType === 'HeartRate' && p.accessType === 'read'
+    );
+  } catch {
+    return false;
+  }
+}
+
+// ── Leer SOLO Frecuencia Cardíaca ───────────────────────────────
+// Devuelve número (bpm) o null. No lee SpO2/Temp/BP.
+export async function getLatestHeartRate() {
+  if (!HC) return null;
+  const available = await initHealthConnect();
+  if (!available) return null;
+  const now   = new Date();
+  const start = new Date(now.getTime() - DATA_WINDOW_HOURS * 60 * 60 * 1000);
+  try {
+    const hrData = await HC.readRecords('HeartRate', {
+      timeRangeFilter: {
+        operator : 'between',
+        startTime: start.toISOString(),
+        endTime  : now.toISOString(),
+      },
+    });
+    if (!hrData?.records?.length) return null;
+    const last   = hrData.records[hrData.records.length - 1];
+    const sample = last.samples?.[last.samples.length - 1];
+    return sample?.beatsPerMinute != null
+      ? Math.round(sample.beatsPerMinute)
+      : null;
+  } catch {
+    return null;
   }
 }
 
