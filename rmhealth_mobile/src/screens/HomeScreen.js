@@ -57,7 +57,7 @@ export const HomeScreen = () => {
   }, []);
 
   // ── Health Connect — Galaxy Watch 8 ──────────────────────────
-  const { watchData, isWatchAvailable } = useWatchData();
+  const { watchData, isWatchAvailable, refreshWatchData, isLoading: isWatchLoading, error: watchError } = useWatchData();
 
   // Auto-fill cuando llegan datos nuevos del reloj
   useEffect(() => {
@@ -74,10 +74,10 @@ export const HomeScreen = () => {
     if (watchData.tad != null) setBpDia(String(watchData.tad));
     setWatchSource(newSource);
 
-    // Auto-análisis solo cuando FC + SpO2 llegan del reloj
-    if (watchData.fc != null && watchData.spo2 != null) {
-      setTimeout(() => handleSendVitalsRef.current?.(), 800);
-    }
+    // Auto-análisis: DESHABILITADO — requiere activación explícita de WATCH_AUTO_ANALYSIS
+    // if (FEATURES.WATCH_AUTO_ANALYSIS && watchData.fc != null && watchData.spo2 != null) {
+    //   setTimeout(() => handleSendVitalsRef.current?.(), 800);
+    // }
   }, [watchData]);
 
     const [statusMsg, setStatusMsg] = useState('');
@@ -333,7 +333,35 @@ export const HomeScreen = () => {
               ))}
             </ScrollView>
 
-            {/* Badge Galaxy Watch 8 — visible solo con datos del reloj */}
+            {/* ── Botón Galaxy Watch 8 — trigger MANUAL (nunca automático) ── */}
+            <TouchableOpacity
+              style={[s.watchBtn, isWatchLoading && s.watchBtnLoading]}
+              onPress={refreshWatchData}
+              disabled={isWatchLoading}
+              accessibilityRole="button"
+              accessibilityLabel={language === 'en' ? 'Read heart rate from Galaxy Watch 8' : 'Leer frecuencia cardíaca del Galaxy Watch 8'}
+              testID="btn-watch-read-hr"
+            >
+              {isWatchLoading
+                ? <ActivityIndicator size="small" color="#0D9488" style={{ marginRight: 6 }} />
+                : <Watch size={14} color="#0D9488" strokeWidth={2.5} style={{ marginRight: 6 }} />
+              }
+              <Text style={s.watchBtnText}>
+                {isWatchLoading
+                  ? (language === 'en' ? 'Reading Watch…' : 'Leyendo Watch…')
+                  : (language === 'en' ? 'Read from Galaxy Watch 8' : 'Leer del Galaxy Watch 8')}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Error inline — sin Alert, no invasivo */}
+            {!!watchError && (
+              <View style={s.watchErrorRow}>
+                <AlertTriangle size={12} color="#F59E0B" strokeWidth={2} style={{ marginRight: 4 }} />
+                <Text style={s.watchErrorText}>{watchError}</Text>
+              </View>
+            )}
+
+            {/* Badge Galaxy Watch 8 — visible solo cuando hay datos del reloj */}
             {(watchSource.fc || watchSource.spo2 || watchSource.temp) && (
               <View style={s.watchBadge}>
                 <Watch size={12} color="#0D9488" strokeWidth={2} />
@@ -626,4 +654,20 @@ const s = StyleSheet.create({
     alignSelf: 'flex-start', borderWidth: 1, borderColor: '#0D9488' + '40',
   },
   watchBadgeText: { fontSize: 11, fontWeight: '700', color: '#0D9488' },
+  // Galaxy Watch 8 — botón manual de lectura
+  watchBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#E0F2F1', borderRadius: 10,
+    paddingVertical: 10, paddingHorizontal: 16, marginBottom: 8,
+    borderWidth: 1.5, borderColor: '#0D9488' + '60',
+  },
+  watchBtnLoading: { opacity: 0.7 },
+  watchBtnText: { fontSize: 13, fontWeight: '800', color: '#0D9488' },
+  watchErrorRow: {
+    flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8,
+    backgroundColor: '#FFFBEB', borderRadius: 8,
+    paddingVertical: 6, paddingHorizontal: 10,
+    borderWidth: 1, borderColor: '#F59E0B' + '50',
+  },
+  watchErrorText: { fontSize: 11, fontWeight: '600', color: '#92400E', flex: 1, lineHeight: 16 },
 });

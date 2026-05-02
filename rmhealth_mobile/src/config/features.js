@@ -22,7 +22,7 @@ export const FEATURES = {
    * false = modo manual, sin módulo nativo de HC.
    * true  = activa sync FC, SpO2, Temp (y BP con calibración).
    */
-  HEALTH_CONNECT_ENABLED: false,
+  HEALTH_CONNECT_ENABLED: true,
 
   /**
    * Auto-análisis al recibir datos del reloj.
