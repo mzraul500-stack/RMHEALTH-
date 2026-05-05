@@ -16,6 +16,7 @@ import { LocationService } from '../services/LocationService';
 import { CriticalAlertModal } from '../components/CriticalAlertModal';
 import { Heart, Wind, Activity, Droplets, Thermometer, Building2, AlertTriangle, Watch } from 'lucide-react-native';
 import { useWatchData } from '../hooks/useWatchData';
+import { FEATURES } from '../config/features';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -39,6 +40,7 @@ export const HomeScreen = () => {
   const [watchSource, setWatchSource] = useState({ fc: false, spo2: false, temp: false });
   const lastWatchTsRef      = useRef(null);
   const handleSendVitalsRef = useRef(null);
+  const lastAutoAnalysisRef = useRef(0); // timestamp del último auto-análisis
 
   // --- API response state ---
   const [sending, setSending] = useState(false);
@@ -57,27 +59,44 @@ export const HomeScreen = () => {
   }, []);
 
   // ── Health Connect — Galaxy Watch 8 ──────────────────────────
-  const { watchData, isWatchAvailable, refreshWatchData, isLoading: isWatchLoading, error: watchError } = useWatchData();
+  const { watchData, isWatchAvailable, permissionsGranted, refreshWatchData, isLoading: isWatchLoading, error: watchError } = useWatchData();
 
   // Auto-fill cuando llegan datos nuevos del reloj
   useEffect(() => {
+    console.log('[HomeScreen] useEffect watchData disparado:', watchData ? 'CON datos' : 'NULL');
     if (!watchData) return;
-    if (watchData.timestamp === lastWatchTsRef.current) return;
+
+    console.log('[HomeScreen] watchData.timestamp=', watchData.timestamp, 'lastRef=', lastWatchTsRef.current);
+    // Actualizar siempre — el hook ya maneja el polling
     lastWatchTsRef.current = watchData.timestamp;
 
-    const newSource = { fc: false, spo2: false, temp: false };
+    const newSource = { fc: false, spo2: false, temp: false, tas: false, tad: false };
+
     if (watchData.fc != null)          { setHeartRate(String(watchData.fc));     newSource.fc   = true; }
     if (watchData.spo2 != null)        { setSpo2(String(watchData.spo2));        newSource.spo2 = true; }
     if (watchData.temperatura != null) { setTemp(String(watchData.temperatura)); newSource.temp = true; }
-    // BP: fluye automáticamente cuando el reloj esté calibrado — sin cambios de código
-    if (watchData.tas != null) setBpSys(String(watchData.tas));
-    if (watchData.tad != null) setBpDia(String(watchData.tad));
+    // BP: fluye automáticamente
+    if (watchData.tas != null)         { setBpSys(String(watchData.tas));        newSource.tas  = true; }
+    if (watchData.tad != null)         { setBpDia(String(watchData.tad));        newSource.tad  = true; }
     setWatchSource(newSource);
 
-    // Auto-análisis: DESHABILITADO — requiere activación explícita de WATCH_AUTO_ANALYSIS
-    // if (FEATURES.WATCH_AUTO_ANALYSIS && watchData.fc != null && watchData.spo2 != null) {
-    //   setTimeout(() => handleSendVitalsRef.current?.(), 800);
-    // }
+    console.log('[HomeScreen] ✅ Campos actualizados: FC=', watchData.fc,
+      'SpO2=', watchData.spo2, 'TAS=', watchData.tas, 'TAD=', watchData.tad,
+      'Fuentes=', JSON.stringify(newSource));
+
+    // Auto-análisis: solo cada 5 minutos para no saturar el backend
+    const AUTO_ANALYSIS_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutos
+    const now = Date.now();
+    const elapsed = now - lastAutoAnalysisRef.current;
+    if (FEATURES.WATCH_AUTO_ANALYSIS && watchData.fc != null && watchData.spo2 != null && watchData.tas != null && watchData.tad != null) {
+      if (elapsed >= AUTO_ANALYSIS_COOLDOWN_MS) {
+        console.log('[HomeScreen] 🔄 Auto-análisis disparado (cooldown OK:', Math.round(elapsed/1000), 's)');
+        lastAutoAnalysisRef.current = now;
+        setTimeout(() => handleSendVitalsRef.current?.(false), 800);
+      } else {
+        console.log('[HomeScreen] ⏳ Auto-análisis en cooldown, faltan', Math.round((AUTO_ANALYSIS_COOLDOWN_MS - elapsed)/1000), 's');
+      }
+    }
   }, [watchData]);
 
     const [statusMsg, setStatusMsg] = useState('');
@@ -86,7 +105,7 @@ export const HomeScreen = () => {
     const [criticalAlert, setCriticalAlert] = useState(null);
     const [showCriticalModal, setShowCriticalModal] = useState(false);
 
-    const handleSendVitals = async () => {
+    const handleSendVitals = async (isManual = true) => {
       // ... (previous logic for parsing)
       const hr = parseInt(heartRate, 10);
       const ox = parseInt(spo2, 10);
@@ -95,22 +114,24 @@ export const HomeScreen = () => {
       const t = parseFloat(temp);
 
       if (isNaN(hr) || isNaN(ox) || isNaN(sys) || isNaN(dia)) {
-        Alert.alert(
-          language === 'en' ? 'Incomplete Data' : 'Datos incompletos',
-          language === 'en'
-            ? 'Enter at least: heart rate, oxygen, systolic and diastolic pressure.'
-            : 'Escribe al menos: pulso, oxígeno, presión sistólica y diastólica.'
-        );
+        if (isManual) {
+          Alert.alert(
+            language === 'en' ? 'Incomplete Data' : 'Datos incompletos',
+            language === 'en'
+              ? 'Enter at least: heart rate, oxygen, systolic and diastolic pressure.'
+              : 'Escribe al menos: pulso, oxígeno, presión sistólica y diastólica.'
+          );
+        }
         return;
       }
 
       setSending(true);
-      setStatusMsg(language === 'en' ? 'GETTING LOCATION...' : 'OBTENIENDO UBICACIÓN...');
+      if (isManual) setStatusMsg(language === 'en' ? 'GETTING LOCATION...' : 'OBTENIENDO UBICACIÓN...');
       try {
         // 1. Get real location (now with 5s timeout)
         const coords = await LocationService.getCurrentLocation();
         
-        setStatusMsg(language === 'en' ? 'ANALYZING DATA...' : 'ANALIZANDO DATOS...');
+        if (isManual) setStatusMsg(language === 'en' ? 'ANALYZING DATA...' : 'ANALIZANDO DATOS...');
         const payload = {
           usuario_id: patientProfile?.name?.toLowerCase().replace(/\s+/g, '_') || 'paciente_001',
           ecg: 1.0, ppg: 1.0,
@@ -152,14 +173,18 @@ export const HomeScreen = () => {
       } catch (err) {
         // ... (existing catch logic)
         const isOffline = err.message?.includes('Network') || err.message?.includes('fetch');
-        Alert.alert(
-          isOffline
-            ? (language === 'en' ? 'No Internet' : 'Sin conexión')
-            : (language === 'en' ? 'Error' : 'Error de conexión'),
-          isOffline
-            ? (language === 'en' ? 'Check your internet.' : 'Revisa tu conexión.')
-            : (language === 'en' ? 'Could not reach server.' : 'No se pudo contactar al servidor.')
-        );
+        if (isManual) {
+          Alert.alert(
+            isOffline
+              ? (language === 'en' ? 'No Internet' : 'Sin conexión')
+              : (language === 'en' ? 'Error' : 'Error de conexión'),
+            isOffline
+              ? (language === 'en' ? 'Check your internet.' : 'Revisa tu conexión.')
+              : (language === 'en' ? 'Could not reach server.' : 'No se pudo contactar al servidor.')
+          );
+        } else {
+          console.warn('[HomeScreen] Auto-analysis failed silently:', err.message);
+        }
         setLastResult(null);
       } finally { 
         setSending(false); 
@@ -358,11 +383,36 @@ export const HomeScreen = () => {
               <View style={s.watchErrorRow}>
                 <AlertTriangle size={12} color="#F59E0B" strokeWidth={2} style={{ marginRight: 4 }} />
                 <Text style={s.watchErrorText}>{watchError}</Text>
+                {!permissionsGranted && (
+                  <TouchableOpacity 
+                    style={s.configPermBtn}
+                    onPress={() => {
+                      const { openHCSettings } = require('../services/HealthConnectService');
+                      openHCSettings();
+                    }}
+                  >
+                    <Text style={s.configPermBtnText}>
+                      {language === 'en' ? 'Fix Permissions' : 'Corregir Permisos'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* Diagnóstico de Calibración de BP */}
+            {watchSource.fc && !watchSource.tas && (
+              <View style={s.calibrationRow}>
+                <AlertTriangle size={12} color="#2563EB" strokeWidth={2} style={{ marginRight: 4 }} />
+                <Text style={s.calibrationText}>
+                  {language === 'en' 
+                    ? 'BP not detected. Galaxy Watch requires manual calibration with a cuff every 28 days.' 
+                    : 'Presión Arterial no detectada. El reloj requiere calibración con baumanómetro de brazo (cada 28 días) para enviar datos.'}
+                </Text>
               </View>
             )}
 
             {/* Badge Galaxy Watch 8 — visible solo cuando hay datos del reloj */}
-            {(watchSource.fc || watchSource.spo2 || watchSource.temp) && (
+            {(watchSource.fc || watchSource.spo2 || watchSource.temp || watchSource.tas || watchSource.tad) && (
               <View style={s.watchBadge}>
                 <Watch size={12} color="#0D9488" strokeWidth={2} />
                 <Text style={s.watchBadgeText}>
@@ -385,7 +435,7 @@ export const HomeScreen = () => {
 
             <TouchableOpacity
               style={[s.submitBtn, sending && s.submitBtnDisabled]}
-              onPress={handleSendVitals}
+              onPress={() => handleSendVitals(true)}
               disabled={sending}
               activeOpacity={0.8}
               accessibilityLabel={language === 'en' ? 'Detect patterns button' : 'Botón detectar patrones'}
@@ -670,4 +720,23 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: '#F59E0B' + '50',
   },
   watchErrorText: { fontSize: 11, fontWeight: '600', color: '#92400E', flex: 1, lineHeight: 16 },
+  configPermBtn: {
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  configPermBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFF',
+  },
+  calibrationRow: {
+    flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8,
+    backgroundColor: '#EFF6FF', borderRadius: 8,
+    paddingVertical: 8, paddingHorizontal: 10,
+    borderWidth: 1, borderColor: '#3B82F6' + '50',
+  },
+  calibrationText: { fontSize: 11, fontWeight: '600', color: '#1E3A8A', flex: 1, lineHeight: 16 },
 });

@@ -4,6 +4,7 @@ import {
   TextInput, Vibration, Platform, Animated, Easing,
   ScrollView, KeyboardAvoidingView, Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../theme';
 
 /**
@@ -51,6 +52,7 @@ const FALSE_ALARM_REASONS = {
 };
 
 export function CriticalAlertModal({ visible, alert, language = 'es', onRespond, onClose }) {
+  const insets = useSafeAreaInsets();
   const [showFalseAlarmForm, setShowFalseAlarmForm] = useState(false);
   const [selectedReason, setSelectedReason] = useState(null);
   const [customReason, setCustomReason] = useState('');
@@ -97,9 +99,19 @@ export function CriticalAlertModal({ visible, alert, language = 'es', onRespond,
         ])
       );
       pulse.start();
-      return () => pulse.stop();
+
+      // 60-second timeout for automatic emergency escalation
+      const timeoutId = setTimeout(() => {
+        console.warn('[CriticalAlertModal] Timeout de 60s alcanzado. Escalando a emergencia automáticamente.');
+        onRespond(alert?.id, 'need_help', 'AUTO_TIMEOUT_60S');
+      }, 60000);
+
+      return () => {
+        pulse.stop();
+        clearTimeout(timeoutId);
+      };
     }
-  }, [visible]);
+  }, [visible, alert]);
 
   if (!alert) return null;
 
@@ -153,6 +165,7 @@ export function CriticalAlertModal({ visible, alert, language = 'es', onRespond,
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <ScrollView
+            style={{ flex: 1 }}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
@@ -191,7 +204,10 @@ export function CriticalAlertModal({ visible, alert, language = 'es', onRespond,
               </Text>
               <Text style={styles.recommendationText}>{alert.recommendation}</Text>
             </View>
+          </ScrollView>
 
+          {/* Footer Area Always Visible */}
+          <View style={[styles.footerContainer, { paddingBottom: insets.bottom + 16 }]}>
             {/* False Alarm Form */}
             {showFalseAlarmForm ? (
               <View style={styles.falseAlarmForm}>
@@ -289,13 +305,13 @@ export function CriticalAlertModal({ visible, alert, language = 'es', onRespond,
                 >
                   <Text style={styles.falseAlarmBtnText}>
                     {language === 'en'
-                      ? 'I am fine — False alarm'
-                      : 'Estoy bien — Falsa alarma'}
+                      ? 'Dismiss: False alarm or Error'
+                      : 'Descartar: Falsa alarma o Error'}
                   </Text>
                 </TouchableOpacity>
               </View>
             )}
-          </ScrollView>
+          </View>
         </KeyboardAvoidingView>
       </Animated.View>
     </Modal>
@@ -314,8 +330,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 60,
-    paddingBottom: 40,
-    justifyContent: 'center',
+    paddingBottom: 20,
+  },
+  footerContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+    paddingTop: 8,
+    backgroundColor: '#7F1D1D',
   },
 
   // Severity Badge
@@ -419,6 +440,7 @@ const styles = StyleSheet.create({
   // Action Buttons
   actionsContainer: {
     gap: 14,
+    paddingTop: 8,
   },
   helpBtn: {
     backgroundColor: '#FFFFFF',
