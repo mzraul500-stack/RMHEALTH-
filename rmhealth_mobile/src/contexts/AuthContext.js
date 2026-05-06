@@ -4,7 +4,7 @@
  * Manages:
  * - User session with JWT access + refresh tokens
  * - Secure token storage via expo-secure-store (never AsyncStorage)
- * - Auto-logout after 15 minutes of inactivity (warning at 13 min)
+ * - Persistent session (auto-logout removed for continuous monitoring)
  * - Token refresh before expiry
  *
  * © 2025 MORALES ZEPEDA RAUL | Registro INDAUTOR: 03-2025-070109072500-01
@@ -24,9 +24,7 @@ const KEYS = {
   USER_DATA: 'rmhealth_user_data',
 };
 
-// Inactivity timeout constants (milliseconds)
-const INACTIVITY_TIMEOUT = 15 * 60 * 1000;   // 15 minutes
-const INACTIVITY_WARNING = 13 * 60 * 1000;   // 13 minutes
+// Session is persistent; auto-logout removed per founder requirements.
 
 const AuthContext = createContext(null);
 
@@ -135,6 +133,20 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  const resend2FA = async (userId) => {
+    const response = await authFetch('/auth/resend-2fa', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || 'Error al reenviar el código');
+    }
+
+    return data;
+  };
+
   const logout = async () => {
     try {
       if (accessToken) {
@@ -235,29 +247,10 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    // Check inactivity every 30 seconds
-    inactivityTimerRef.current = setInterval(() => {
-      const elapsed = Date.now() - lastActivityRef.current;
-
-      if (elapsed >= INACTIVITY_TIMEOUT) {
-        logout();
-        Alert.alert(
-          'Sesión Expirada',
-          'Tu sesión se cerró por inactividad de 15 minutos.',
-          [{ text: 'OK' }]
-        );
-      } else if (elapsed >= INACTIVITY_WARNING && !warningShownRef.current) {
-        warningShownRef.current = true;
-        Alert.alert(
-          '⚠️ Aviso de Inactividad',
-          'Tu sesión se cerrará en 2 minutos por inactividad.',
-          [
-            { text: 'Continuar', onPress: () => resetInactivityTimer() },
-          ]
-        );
-      }
-    }, 30000);
-
+    // Persistent session requested by founder. 
+    // Inactivity logout removed to prevent monitoring interruptions.
+    // The session remains open until explicit logout or token revocation.
+    
     return () => clearInactivityTimer();
   }, [isAuthenticated]);
 
@@ -308,6 +301,7 @@ export function AuthProvider({ children }) {
     register,
     login,
     verify2FA,
+    resend2FA,
     logout,
     changePassword,
     forgotPassword,
