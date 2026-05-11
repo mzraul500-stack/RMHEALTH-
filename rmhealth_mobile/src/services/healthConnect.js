@@ -1,7 +1,7 @@
 /**
  * Health Connect Service
  *
- * Reads real vital signs from Samsung Galaxy Watch (and other Android
+ * Reads real vital signs from compatible smartwatches (and other Android
  * wearables) via the Health Connect API. This replaces the simulated
  * data from useVitalsSimulation once a real device is available.
  *
@@ -139,7 +139,7 @@ export const readOxygenSaturation = async (lookbackMinutes = 10) => {
 
 /**
  * Read the latest blood pressure from Health Connect.
- * Note: Only Samsung Galaxy Watch supports BP via Health Connect.
+ * Note: Only some smartwatches (like Samsung Galaxy Watch) support BP via Health Connect.
  *
  * @param {number} lookbackMinutes - Minutes of history to query.
  * @returns {Promise<{systolic: number, diastolic: number}|null>}

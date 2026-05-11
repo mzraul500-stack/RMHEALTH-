@@ -166,152 +166,155 @@ export function CriticalAlertModal({ visible, alert, language = 'es', onRespond,
         >
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 30 }]}
             keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={true}
           >
-            {/* Severity Badge */}
-            <Animated.View style={[styles.severityBadge, { transform: [{ scale: pulseAnim }] }]}>
-              <Text style={styles.severityText}>{severityLabel}</Text>
-            </Animated.View>
+            <View style={{ flexGrow: 1 }}>
+              {/* Severity Badge */}
+              <Animated.View style={[styles.severityBadge, { transform: [{ scale: pulseAnim }] }]}>
+                <Text style={styles.severityText}>{severityLabel}</Text>
+              </Animated.View>
 
-            {/* Title */}
-            <Text style={styles.title}>{alert.title}</Text>
+              {/* Title */}
+              <Text style={styles.title}>{alert.title}</Text>
 
-            {/* Metric & Value */}
-            <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>{metricLabel}</Text>
-              <Text style={styles.metricValue}>
-                {alert.current_value} {metricInfo.unit}
-              </Text>
-              <View style={styles.metricDivider} />
-              <View style={styles.metricRow}>
-                <Text style={styles.metricDetail}>
-                  {language === 'en' ? 'Baseline' : 'Referencia'}: {alert.baseline_value} {metricInfo.unit}
+              {/* Metric & Value */}
+              <View style={styles.metricCard}>
+                <Text style={styles.metricLabel}>{metricLabel}</Text>
+                <Text style={styles.metricValue}>
+                  {alert.current_value} {metricInfo.unit}
                 </Text>
-                <Text style={styles.metricDetail}>
-                  {language === 'en' ? 'Change' : 'Cambio'}: {alert.delta > 0 ? '+' : ''}{alert.delta} {metricInfo.unit}
+                <View style={styles.metricDivider} />
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricDetail}>
+                    {language === 'en' ? 'Baseline' : 'Referencia'}: {alert.baseline_value} {metricInfo.unit}
+                  </Text>
+                  <Text style={styles.metricDetail}>
+                    {language === 'en' ? 'Change' : 'Cambio'}: {alert.delta > 0 ? '+' : ''}{alert.delta} {metricInfo.unit}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Message */}
+              <Text style={styles.message}>{alert.message}</Text>
+
+              {/* Recommendation */}
+              <View style={styles.recommendationBox}>
+                <Text style={styles.recommendationLabel}>
+                  {language === 'en' ? 'RECOMMENDATION' : 'RECOMENDACION'}
                 </Text>
+                <Text style={styles.recommendationText}>{alert.recommendation}</Text>
               </View>
             </View>
 
-            {/* Message */}
-            <Text style={styles.message}>{alert.message}</Text>
+            {/* Footer Area */}
+            <View style={styles.footerContainerInside}>
+              {/* False Alarm Form */}
+              {showFalseAlarmForm ? (
+                <View style={styles.falseAlarmForm}>
+                  <Text style={styles.falseAlarmTitle}>
+                    {language === 'en' ? 'Reason for dismissal:' : 'Motivo del descarte:'}
+                  </Text>
+                  {reasons.map((reason, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[
+                        styles.reasonButton,
+                        selectedReason === idx && styles.reasonButtonSelected,
+                      ]}
+                      onPress={() => setSelectedReason(idx)}
+                    >
+                      <View style={[
+                        styles.radioOuter,
+                        selectedReason === idx && styles.radioOuterSelected,
+                      ]}>
+                        {selectedReason === idx && <View style={styles.radioInner} />}
+                      </View>
+                      <Text style={[
+                        styles.reasonText,
+                        selectedReason === idx && styles.reasonTextSelected,
+                      ]}>
+                        {reason}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
 
-            {/* Recommendation */}
-            <View style={styles.recommendationBox}>
-              <Text style={styles.recommendationLabel}>
-                {language === 'en' ? 'RECOMMENDATION' : 'RECOMENDACION'}
-              </Text>
-              <Text style={styles.recommendationText}>{alert.recommendation}</Text>
-            </View>
-          </ScrollView>
+                  {/* Custom reason input */}
+                  {selectedReason === reasons.length - 1 && (
+                    <TextInput
+                      style={styles.customInput}
+                      value={customReason}
+                      onChangeText={setCustomReason}
+                      placeholder={language === 'en' ? 'Describe the reason...' : 'Describe el motivo...'}
+                      placeholderTextColor="#FFFFFF66"
+                      multiline
+                      maxLength={200}
+                    />
+                  )}
 
-          {/* Footer Area Always Visible */}
-          <View style={[styles.footerContainer, { paddingBottom: insets.bottom + 16 }]}>
-            {/* False Alarm Form */}
-            {showFalseAlarmForm ? (
-              <View style={styles.falseAlarmForm}>
-                <Text style={styles.falseAlarmTitle}>
-                  {language === 'en' ? 'Reason for dismissal:' : 'Motivo del descarte:'}
-                </Text>
-                {reasons.map((reason, idx) => (
+                  <View style={styles.falseAlarmActions}>
+                    <TouchableOpacity
+                      style={styles.cancelBtn}
+                      onPress={() => {
+                        setShowFalseAlarmForm(false);
+                        setSelectedReason(null);
+                      }}
+                    >
+                      <Text style={styles.cancelBtnText}>
+                        {language === 'en' ? 'Back' : 'Volver'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.confirmDismissBtn, isSubmitting && styles.btnDisabled]}
+                      onPress={handleFalseAlarm}
+                      disabled={isSubmitting || selectedReason === null}
+                    >
+                      <Text style={styles.confirmDismissText}>
+                        {isSubmitting
+                          ? (language === 'en' ? 'Sending...' : 'Enviando...')
+                          : (language === 'en' ? 'Confirm Dismissal' : 'Confirmar Descarte')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                /* Main Action Buttons */
+                <View style={styles.actionsContainer}>
                   <TouchableOpacity
-                    key={idx}
-                    style={[
-                      styles.reasonButton,
-                      selectedReason === idx && styles.reasonButtonSelected,
-                    ]}
-                    onPress={() => setSelectedReason(idx)}
+                    style={[styles.helpBtn, isSubmitting && styles.btnDisabled]}
+                    onPress={handleNeedHelp}
+                    disabled={isSubmitting}
+                    activeOpacity={0.7}
                   >
-                    <View style={[
-                      styles.radioOuter,
-                      selectedReason === idx && styles.radioOuterSelected,
-                    ]}>
-                      {selectedReason === idx && <View style={styles.radioInner} />}
-                    </View>
-                    <Text style={[
-                      styles.reasonText,
-                      selectedReason === idx && styles.reasonTextSelected,
-                    ]}>
-                      {reason}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-
-                {/* Custom reason input */}
-                {selectedReason === reasons.length - 1 && (
-                  <TextInput
-                    style={styles.customInput}
-                    value={customReason}
-                    onChangeText={setCustomReason}
-                    placeholder={language === 'en' ? 'Describe the reason...' : 'Describe el motivo...'}
-                    placeholderTextColor="#FFFFFF66"
-                    multiline
-                    maxLength={200}
-                  />
-                )}
-
-                <View style={styles.falseAlarmActions}>
-                  <TouchableOpacity
-                    style={styles.cancelBtn}
-                    onPress={() => {
-                      setShowFalseAlarmForm(false);
-                      setSelectedReason(null);
-                    }}
-                  >
-                    <Text style={styles.cancelBtnText}>
-                      {language === 'en' ? 'Back' : 'Volver'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.confirmDismissBtn, isSubmitting && styles.btnDisabled]}
-                    onPress={handleFalseAlarm}
-                    disabled={isSubmitting || selectedReason === null}
-                  >
-                    <Text style={styles.confirmDismissText}>
+                    <Text style={styles.helpBtnText}>
                       {isSubmitting
-                        ? (language === 'en' ? 'Sending...' : 'Enviando...')
-                        : (language === 'en' ? 'Confirm Dismissal' : 'Confirmar Descarte')}
+                        ? (language === 'en' ? 'ACTIVATING...' : 'ACTIVANDO...')
+                        : (language === 'en' ? 'I NEED HELP NOW' : 'NECESITO AYUDA AHORA')}
+                    </Text>
+                    <Text style={styles.helpBtnSubtext}>
+                      {language === 'en'
+                        ? 'Notifies your emergency contacts'
+                        : 'Notifica a tus contactos de emergencia'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.falseAlarmBtn}
+                    onPress={() => setShowFalseAlarmForm(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.falseAlarmBtnText}>
+                      {language === 'en'
+                        ? 'Dismiss: False alarm or Error'
+                        : 'Descartar: Falsa alarma o Error'}
                     </Text>
                   </TouchableOpacity>
                 </View>
-              </View>
-            ) : (
-              /* Main Action Buttons */
-              <View style={styles.actionsContainer}>
-                <TouchableOpacity
-                  style={[styles.helpBtn, isSubmitting && styles.btnDisabled]}
-                  onPress={handleNeedHelp}
-                  disabled={isSubmitting}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.helpBtnText}>
-                    {isSubmitting
-                      ? (language === 'en' ? 'ACTIVATING...' : 'ACTIVANDO...')
-                      : (language === 'en' ? 'I NEED HELP NOW' : 'NECESITO AYUDA AHORA')}
-                  </Text>
-                  <Text style={styles.helpBtnSubtext}>
-                    {language === 'en'
-                      ? 'Notifies your emergency contacts'
-                      : 'Notifica a tus contactos de emergencia'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.falseAlarmBtn}
-                  onPress={() => setShowFalseAlarmForm(true)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.falseAlarmBtnText}>
-                    {language === 'en'
-                      ? 'Dismiss: False alarm or Error'
-                      : 'Descartar: Falsa alarma o Error'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+              )}
+            </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </Animated.View>
     </Modal>
@@ -332,11 +335,8 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 20,
   },
-  footerContainer: {
-    paddingHorizontal: 24,
-    paddingBottom: 16,
+  footerContainerInside: {
     paddingTop: 8,
-    backgroundColor: '#7F1D1D',
   },
 
   // Severity Badge

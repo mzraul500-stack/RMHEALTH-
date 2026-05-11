@@ -62,6 +62,19 @@ const TEXTS = {
   },
 };
 
+// Mapa de traducción: el backend devuelve códigos en inglés
+const SEVERITY_MAP = {
+  es: {
+    CRITICAL: 'CRÍTICO', HIGH: 'ALTO', MEDIUM: 'MEDIO', LOW: 'BAJO', NORMAL: 'NORMAL',
+    CRITICO: 'CRÍTICO', ALTO: 'ALTO', MEDIO: 'MEDIO', BAJO: 'BAJO',
+    SOS_MANUAL: 'SOS',
+  },
+  en: {
+    CRITICAL: 'CRITICAL', HIGH: 'HIGH', MEDIUM: 'MEDIUM', LOW: 'LOW', NORMAL: 'NORMAL',
+    SOS_MANUAL: 'SOS',
+  },
+};
+
 // ─── MINI CALENDAR COMPONENT ────────────────────────────────────
 function MiniCalendar({ selectedDate, onSelectDate, markedDates, txt }) {
   const [viewDate, setViewDate] = useState(new Date());
@@ -280,7 +293,7 @@ export const HistoryScreen = () => {
 
         // Load preventive alerts
         try {
-          const userId = 'paciente_001'; // Default user
+          const userId = 'usuario_001'; // Default user
           const alertsData = await apiService.getPreventiveAlerts(userId, accessToken);
           if (alertsData.status === 'success' && alertsData.alerts) {
             setPreventiveAlerts(alertsData.alerts);
@@ -363,7 +376,8 @@ export const HistoryScreen = () => {
     text += `${'─'.repeat(30)}\n\n`;
     records.forEach((r, i) => {
       text += `${i + 1}. ${new Date(r.timestamp).toLocaleString()}\n`;
-      text += `   Nivel: ${r.tipo_emergencia} | Score: ${r.score}\n`;
+      const lvlLabel = (SEVERITY_MAP[language] || SEVERITY_MAP.es)[r.tipo_emergencia] || r.tipo_emergencia;
+      text += `   Nivel: ${lvlLabel} | Score: ${r.score}\n`;
       if (r.vitals?.hr) {
         text += `   FC:${r.vitals.hr} SpO2:${r.vitals.spo2}% PA:${r.vitals.sys}/${r.vitals.dia} Glu:${r.vitals.glucose}\n`;
       }
@@ -468,7 +482,7 @@ export const HistoryScreen = () => {
               <View style={styles.cardContent}>
                 <View style={styles.cardHeader}>
                   <Text style={[styles.alertType, { color: getSeverityColor(item.tipo_emergencia) }]}>
-                    {item.is_sos ? txt.sos_label : item.tipo_emergencia}
+                    {item.is_sos ? txt.sos_label : ((SEVERITY_MAP[language] || SEVERITY_MAP.es)[item.tipo_emergencia] || item.tipo_emergencia)}
                   </Text>
                   <Text style={styles.timestamp}>{new Date(item.timestamp).toLocaleString()}</Text>
                 </View>
@@ -494,7 +508,7 @@ export const HistoryScreen = () => {
                 )}
                 <Text style={styles.desc} numberOfLines={2}>{item.descripcion}</Text>
                 <View style={styles.metaRow}>
-                  <Text style={styles.meta}>{txt.ml}: {item.ml_level} ({(item.ml_confidence * 100).toFixed(0)}%)</Text>
+                  <Text style={styles.meta}>{txt.ml}: {(SEVERITY_MAP[language] || SEVERITY_MAP.es)[item.ml_level] || item.ml_level} ({(item.ml_confidence * 100).toFixed(0)}%)</Text>
                   <Text style={styles.meta}>{txt.score}: {item.score?.toFixed?.(0) || item.score}</Text>
                 </View>
               </View>

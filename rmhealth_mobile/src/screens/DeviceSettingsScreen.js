@@ -106,7 +106,7 @@ const SETTINGS_INTENTS = {
 const SUPPORTED_DEVICES = [
   {
     id: 'samsung_watch',
-    name: 'Samsung Galaxy Watch',
+    name: 'Smartwatch (Health Connect)',
     sdk: 'Health Connect',
     platform: 'Android',
     status: 'available',
@@ -133,7 +133,7 @@ const SUPPORTED_DEVICES = [
 const TEXTS = {
   es: {
     title: 'Configuración de Dispositivos',
-    subtitle: 'Selecciona el reloj que usarás para enviar signos vitales a RmHealth. Requiere el dispositivo físico.',
+    subtitle: 'Selecciona una fuente compatible para sincronizar datos.',
     available: 'DISPONIBLE',
     selected: 'SELECCIONADO',
     coming_soon: 'PRÓXIMAMENTE',
@@ -144,7 +144,7 @@ const TEXTS = {
   },
   en: {
     title: 'Device Settings',
-    subtitle: 'Select the watch you will use to send vital signs to RmHealth. Requires the physical device.',
+    subtitle: 'Select a compatible source to synchronize data.',
     available: 'AVAILABLE',
     selected: 'SELECTED',
     coming_soon: 'COMING SOON',
@@ -489,12 +489,6 @@ function DeviceListScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={[styles.title, { color: colors.secondary }]}>{txt.title}</Text>
         <Text style={[styles.subtitle, { color: colors.text }]}>{txt.subtitle}</Text>
-
-        {/* Manual mode indicator */}
-        <View style={[styles.manualBanner, isHighContrast && styles.hcBorder]}>
-          <Text style={styles.manualIcon}>✍️</Text>
-          <Text style={[styles.manualText, { color: isHighContrast ? colors.text : '#92400E' }]}>{txt.manual_note}</Text>
-        </View>
 
         {SUPPORTED_DEVICES.map((device) => (
           <TouchableOpacity 

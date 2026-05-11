@@ -25,33 +25,79 @@ export class LocalWellnessEngine {
     const input = message.toLowerCase().trim();
     const disclaimer = lang === 'en' ? DISCLAIMER_EN : DISCLAIMER_ES;
 
-    // 1. Check for summary requests
+    // 1. Intentar llamar al backend con Gemini (con timeout de 3s)
+    try {
+      let API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://rmhealth-api-292048010515.us-central1.run.app/api';
+      // Remover slash final si existe para evitar duplicidades
+      API_BASE_URL = API_BASE_URL.replace(/\/$/, '');
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      // Obtener últimos registros para contexto
+      const rawVitals = await AsyncStorage.getItem('@rmhealth_vitals_history');
+      let recentVitals = [];
+      if (rawVitals) {
+        const records = JSON.parse(rawVitals);
+        recentVitals = records.slice(0, 5); // Enviamos los últimos 5 para contexto
+      }
+
+      const response = await fetch(`${API_BASE_URL}/chatbot/message`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: message,
+          context: {
+            language: lang,
+            recent_vitals: recentVitals
+          }
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.response) {
+          // Si el backend responde exitosamente, usamos su respuesta (que ya debe incluir el disclaimer)
+          return data.response;
+        }
+      }
+    } catch (error) {
+      console.log('[LocalWellnessEngine] Gemini API unreachable or timeout, falling back to local engine.', error.message);
+    }
+
+    // FALLBACK: Lógica 100% offline local original
+    // 2. Check for summary requests
     if (this._matchesIntent(input, ['resumen', 'resúmeme', 'summary', 'semana', 'week', 'como estoy', 'how am i', 'informe', 'reporte', 'report', 'datos', 'estadisticas', 'estadísticas', 'stats', 'mis datos', 'my data', 'como voy', 'mi salud', 'my health', 'historial', 'resúmeme mi', 'dame mi'])) {
       return await this._generateSummary(lang) + disclaimer;
     }
 
-    // 2. Check for medication questions
+    // 3. Check for medication questions
     if (this._matchesIntent(input, ['tomé', 'tome', 'adherencia', 'adherence', 'cuantas pastillas', 'did i take', 'medication log'])) {
       return await this._generateMedSummary(lang) + disclaimer;
     }
 
-    // 3. FAQ matching
+    // 4. FAQ matching
     const faqResponse = this._matchFAQ(input, lang);
     if (faqResponse) {
       return faqResponse + disclaimer;
     }
 
-    // 4. Greeting
+    // 5. Greeting
     if (this._matchesIntent(input, ['hola', 'hello', 'hi', 'hey', 'buenos', 'buenas', 'good morning', 'good night'])) {
       return lang === 'en'
-        ? 'Hello! I\'m your wellness coach. You can ask me about your health metrics, medications, or say "summary" to see your weekly report.'
-        : '¡Hola! Soy tu coach de bienestar. Puedes preguntarme sobre tus métricas de salud, medicamentos, o escribe "resumen" para ver tu reporte semanal.';
+        ? 'Hello! I\'m your wellness coach. You can ask me about your wellness metrics, recommendations, or say "summary" to see your weekly report.'
+        : '¡Hola! Soy tu coach de bienestar. Puedes preguntarme sobre tus métricas de salud, recomendaciones, o escribe "resumen" para ver tu reporte semanal.';
     }
 
-    // 5. Default fallback
+    // 6. Default fallback
     return lang === 'en'
-      ? 'I\'m not sure I understand. Try asking about:\n\n• Blood pressure\n• Heart rate\n• Glucose\n• Oxygen\n• Temperature\n• Medications\n• "Summary" for your weekly report\n\nOr ask "How does the app work?"' + disclaimer
-      : 'No estoy seguro de entender. Intenta preguntar sobre:\n\n• Presión arterial\n• Frecuencia cardíaca\n• Glucosa\n• Oxígeno\n• Temperatura\n• Medicamentos\n• "Resumen" para tu reporte semanal\n\nO pregunta "¿Cómo funciona la app?"' + disclaimer;
+      ? 'I\'m not sure I understand. Try asking about:\n\n• Blood pressure\n• Heart rate\n• Glucose\n• Oxygen\n• Temperature\n• recommendations\n• "Summary" for your weekly report\n\nOr ask "How does the app work?"' + disclaimer
+      : 'No estoy seguro de entender. Intenta preguntar sobre:\n\n• Presión arterial\n• Frecuencia cardíaca\n• Glucosa\n• Oxígeno\n• Temperatura\n• recomendaciones\n• "Resumen" para tu reporte semanal\n\nO pregunta "¿Cómo funciona la app?"' + disclaimer;
   }
 
   // ── FAQ MATCHING ──
@@ -85,8 +131,8 @@ export class LocalWellnessEngine {
       const raw = await AsyncStorage.getItem('@rmhealth_vitals_history');
       if (!raw) {
         return lang === 'en'
-          ? 'No records yet. Start by entering your health metrics on the home screen.'
-          : 'Aún no hay registros. Comienza ingresando tus métricas en la pantalla principal.';
+          ? 'No records yet. Start by entering your wellness metrics on the home screen.'
+          : 'Aún no hay registros. Comienza ingresando tus métricas de bienestar en la pantalla principal.';
       }
 
       const records = JSON.parse(raw);
@@ -143,11 +189,11 @@ export class LocalWellnessEngine {
   // ── MEDICATION SUMMARY ──
   static async _generateMedSummary(lang) {
     try {
-      const raw = await AsyncStorage.getItem('@rmhealth/medications');
+      const raw = await AsyncStorage.getItem('@rmhealth/recommendations');
       if (!raw) {
         return lang === 'en'
-          ? 'No medications registered. Add your medications in the Medications tab.'
-          : 'No hay medicamentos registrados. Agrega tus medicamentos en la pestaña Medicinas.';
+          ? 'No recommendations registered. Add your recommendations in the recommendations tab.'
+          : 'No hay recomendaciones registrados. Agrega tus recomendaciones en la pestaña Medicinas.';
       }
 
       const meds = JSON.parse(raw);
@@ -169,20 +215,20 @@ export class LocalWellnessEngine {
           `Taken: ${taken}/${total}\n` +
           `Adherence: ${total > 0 ? ((taken / total) * 100).toFixed(0) : 0}%\n\n` +
           (taken === total
-            ? `Great job! All medications taken today.`
+            ? `Great job! All recommendations taken today.`
             : `You still have ${total - taken} medication(s) pending today.`);
       }
 
-      return `**Estado de Medicamentos Hoy**\n\n` +
+      return `**Estado de recomendaciones Hoy**\n\n` +
         `Tomados: ${taken}/${total}\n` +
         `Adherencia: ${total > 0 ? ((taken / total) * 100).toFixed(0) : 0}%\n\n` +
         (taken === total
-          ? `Excelente! Todos los medicamentos tomados hoy.`
+          ? `Excelente! Todos los recomendaciones tomados hoy.`
           : `Aún tienes ${total - taken} medicamento(s) pendiente(s) hoy.`);
     } catch (e) {
       return lang === 'en'
         ? 'Could not read medication data.'
-        : 'No se pudo leer los datos de medicamentos.';
+        : 'No se pudo leer los datos de recomendaciones.';
     }
   }
 

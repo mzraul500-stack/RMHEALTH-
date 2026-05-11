@@ -408,6 +408,7 @@ function ConsentGate({ children }) {
 function AuthGate({ children }) {
   const { isAuthenticated, isLoading } = useAuth();
   const [authScreen, setAuthScreen] = useState('login'); // 'login' | 'register' | '2fa'
+  const [previousAuthScreen, setPreviousAuthScreen] = useState('login');
   const [pending2FAUserId, setPending2FAUserId] = useState(null);
 
   if (isLoading) {
@@ -425,6 +426,7 @@ function AuthGate({ children }) {
           onNavigateLogin={() => setAuthScreen('login')}
           onRegister2FA={(userId) => {
             setPending2FAUserId(userId);
+            setPreviousAuthScreen('register');
             setAuthScreen('2fa');
           }}
         />
@@ -440,7 +442,7 @@ function AuthGate({ children }) {
           }}
           onBack={() => {
             setPending2FAUserId(null);
-            setAuthScreen('login');
+            setAuthScreen(previousAuthScreen);
           }}
         />
       );
@@ -461,6 +463,7 @@ function AuthGate({ children }) {
         }}
         onLogin2FA={(userId) => {
           setPending2FAUserId(userId);
+          setPreviousAuthScreen('login');
           setAuthScreen('2fa');
         }}
       />

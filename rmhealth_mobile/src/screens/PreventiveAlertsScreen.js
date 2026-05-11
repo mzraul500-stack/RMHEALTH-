@@ -58,13 +58,13 @@ export const PreventiveAlertsScreen = ({ navigation }) => {
         const raw = await AsyncStorage.getItem('@rmhealth/patient_profile');
         if (raw) {
           const profile = JSON.parse(raw);
-          const id = profile?.name?.toLowerCase().replace(/\s+/g, '_') || 'paciente_001';
+          const id = profile?.name?.toLowerCase().replace(/\s+/g, '_') || 'usuario_001';
           setUserId(id);
         } else {
-          setUserId('paciente_001');
+          setUserId('usuario_001');
         }
       } catch (e) {
-        setUserId('paciente_001');
+        setUserId('usuario_001');
       }
     };
     loadUserId();
@@ -152,7 +152,7 @@ export const PreventiveAlertsScreen = ({ navigation }) => {
       <View style={styles.disclaimerCard}>
         <Info size={14} color="#0369A1" strokeWidth={2} style={{ marginRight: 6, marginTop: 1 }} />
         <Text style={styles.disclaimerText}>
-          Estas alertas son informativas y preventivas. No constituyen un diagnóstico médico.
+          Estas alertas son informativas y preventivas basadas en tendencias. No constituyen un diagnóstico médico ni reemplazan el consejo profesional.
           Consulta a un profesional de salud para cualquier decisión clínica.
         </Text>
       </View>

@@ -1,6 +1,7 @@
 /**
  * HealthConnectService.js
- * Integración Galaxy Watch 8 → Samsung Health → Health Connect → RMHealth
+ * Integración de wearables compatibles vía Health Connect → RMHealth
+ * (Probado inicialmente con Galaxy Watch 8)
  *
  * Parámetros automáticos activos: FC, SpO2, Temperatura
  * Parámetros manuales por ahora: TAS, TAD (hasta calibración BP), Glucosa
@@ -13,6 +14,8 @@
  */
 
 import * as TaskManager from 'expo-task-manager';
+import * as SecureStore from 'expo-secure-store';
+import { apiService } from '../api/client';
 
 // Lazy load — si el módulo nativo falla en este dispositivo,
 // todas las funciones devuelven null/false sin crashear la app.
@@ -25,7 +28,8 @@ try {
 
 // ── Constantes ──────────────────────────────────────────────────
 const BACKGROUND_SYNC_TASK = 'RMHEALTH_WATCH_SYNC';
-const DATA_WINDOW_HOURS    = 2; // leer últimas 2h
+const DATA_WINDOW_HOURS    = 72;  // FC, SpO2, Temp — ampliado a 72h para asegurar que muestre datos
+const BP_WINDOW_HOURS      = 168; // PA — ampliado a 1 semana para diagnóstico
 
 // Permisos completos para sync futuro (SpO2, Temp, BP).
 // BloodPressure incluido para que fluya automáticamente cuando
@@ -37,7 +41,7 @@ const HC_PERMISSIONS = [
   { accessType: 'read', recordType: 'BloodPressure'    }, // futuro-ready
 ];
 
-// Permiso mínimo para el botón "Leer del Galaxy Watch 8" (Fase 1).
+// Permiso mínimo para el botón "Leer desde Health Connect" (Fase 1).
 // Solo Heart Rate — no SpO2, no Temp, no BP.
 const HC_HEART_RATE_ONLY = [
   { accessType: 'read', recordType: 'HeartRate' },
@@ -45,45 +49,77 @@ const HC_HEART_RATE_ONLY = [
 
 // ── Inicializar ─────────────────────────────────────────────────
 async function initHealthConnect() {
-  if (!HC) return false; // módulo no disponible
+  if (!HC) return { available: false, status: null, reason: "NO_MODULE" };
   try {
     const status = await HC.getSdkStatus();
-    if (status !== 3) return false;
-    await HC.initialize();
-    return true;
-  } catch {
+    console.log("[HC] getSdkStatus:", status);
+    
+    if (status === 3) {
+      await HC.initialize();
+      return { available: true, status };
+    }
+    
+    let reason = "UNKNOWN_STATUS";
+    if (status === 1) reason = "SDK_UNAVAILABLE";
+    if (status === 2) reason = "SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED";
+    
+    return { available: false, status, reason };
+  } catch (error) {
+    console.log("[HC] init error:", error);
+    return { available: false, status: null, reason: "INITIALIZE_ERROR" };
+  }
+}
+
+export async function requestWatchPermissions() {
+  if (!HC) return { available: false, status: null, reason: "NO_MODULE" };
+  const initResult = await initHealthConnect();
+  if (!initResult.available) {
+    console.log("[HC] requestWatchPermissions abortado, initResult:", initResult);
+    return initResult;
+  }
+  try {
+    const granted = await HC.requestPermission(HC_PERMISSIONS);
+    console.log("[HC] requestPermission result:", JSON.stringify(granted));
+    if (!granted || granted.length === 0) return false;
+    return true; // Si devolvió arreglo, asumimos que concedió los permisos
+  } catch (error) {
+    console.log("[HC] requestPermission error:", error);
     return false;
   }
 }
 
-// ── Solicitar permisos (completos — futuro) ─────────────────────
-export async function requestWatchPermissions() {
+// ── Abrir Ajustes de Health Connect ─────────────────────────────
+export async function openHCSettings() {
   if (!HC) return false;
-  const available = await initHealthConnect();
-  if (!available) return false;
   try {
-    const granted = await HC.requestPermission(HC_PERMISSIONS);
-    return granted && granted.length > 0;
-  } catch {
+    await HC.openHealthConnectSettings();
+    return true;
+  } catch (error) {
+    console.log("[HC] openHCSettings error:", error);
     return false;
   }
 }
 
 // ── Solicitar SOLO permiso de Frecuencia Cardíaca ────────────────
-// Usado por el botón "Leer del Galaxy Watch 8" (Fase 1).
+// Usado por el botón "Leer desde Health Connect" (Fase 1).
 // No solicita SpO2, temperatura ni presión arterial.
 export async function requestHeartRatePermission() {
-  if (!HC) return false;
-  const available = await initHealthConnect();
-  if (!available) return false;
+  if (!HC) return { available: false, status: null, reason: "NO_MODULE" };
+  const initResult = await initHealthConnect();
+  if (!initResult.available) {
+    console.log("[HC] requestHeartRatePermission abortado, initResult:", initResult);
+    return initResult;
+  }
   try {
     const granted = await HC.requestPermission(HC_HEART_RATE_ONLY);
+    console.log("[HC] requestPermission result:", JSON.stringify(granted));
     // granted es array de permisos concedidos — verificar que contiene HeartRate
     if (!granted || granted.length === 0) return false;
     return granted.some(
       (p) => p.recordType === 'HeartRate' && p.accessType === 'read'
     );
-  } catch {
+  } catch (error) {
+    console.log("[HC] requestPermission error:", error);
     return false;
   }
 }
@@ -92,8 +128,8 @@ export async function requestHeartRatePermission() {
 // Devuelve número (bpm) o null. No lee SpO2/Temp/BP.
 export async function getLatestHeartRate() {
   if (!HC) return null;
-  const available = await initHealthConnect();
-  if (!available) return null;
+  const initResult = await initHealthConnect();
+  if (!initResult.available) return null;
   const now   = new Date();
   const start = new Date(now.getTime() - DATA_WINDOW_HOURS * 60 * 60 * 1000);
   try {
@@ -134,8 +170,8 @@ export async function getLatestHeartRate() {
  */
 export async function getLatestWatchData() {
   if (!HC) return null; // módulo no disponible — fallback silencioso
-  const available = await initHealthConnect();
-  if (!available) return null;
+  const initResult = await initHealthConnect();
+  if (!initResult.available) return null;
 
   const now   = new Date();
   const start = new Date(now.getTime() - DATA_WINDOW_HOURS * 60 * 60 * 1000);
@@ -149,6 +185,7 @@ export async function getLatestWatchData() {
     // ── Frecuencia Cardíaca ──────────────────────────────────
     let fc = null;
     const hrData = await HC.readRecords('HeartRate', { timeRangeFilter: timeRange });
+    console.log('[HC] HeartRate records:', hrData?.records?.length ?? 0);
     if (hrData?.records?.length > 0) {
       const last   = hrData.records[hrData.records.length - 1];
       const sample = last.samples?.[last.samples.length - 1];
@@ -158,6 +195,7 @@ export async function getLatestWatchData() {
     // ── SpO2 ─────────────────────────────────────────────────
     let spo2 = null;
     const spo2Data = await HC.readRecords('OxygenSaturation', { timeRangeFilter: timeRange });
+    console.log('[HC] OxygenSaturation records:', spo2Data?.records?.length ?? 0);
     if (spo2Data?.records?.length > 0) {
       const last = spo2Data.records[spo2Data.records.length - 1];
       spo2 = last?.percentage != null ? Math.round(last.percentage) : null;
@@ -166,6 +204,7 @@ export async function getLatestWatchData() {
     // ── Temperatura ──────────────────────────────────────────
     let temperatura = null;
     const tempData = await HC.readRecords('BodyTemperature', { timeRangeFilter: timeRange });
+    console.log('[HC] BodyTemperature records:', tempData?.records?.length ?? 0);
     if (tempData?.records?.length > 0) {
       const last = tempData.records[tempData.records.length - 1];
       // Health Connect almacena en Celsius nativo en Samsung Health
@@ -174,22 +213,60 @@ export async function getLatestWatchData() {
         : null;
     }
 
-    // ── Presión Arterial (futuro-ready) ──────────────────────
-    // Fluirá automáticamente cuando el usuario calibre el reloj.
-    // No requiere cambios de código — Health Connect enviará los datos.
+    // ── Presión Arterial (ventana extendida 24h) ─────────────────
     let tas = null;
     let tad = null;
-    const bpData = await HC.readRecords('BloodPressure', { timeRangeFilter: timeRange });
-    if (bpData?.records?.length > 0) {
-      const last = bpData.records[bpData.records.length - 1];
-      tas = last?.systolic?.inMillimetersOfMercury != null
-        ? Math.round(last.systolic.inMillimetersOfMercury) : null;
-      tad = last?.diastolic?.inMillimetersOfMercury != null
-        ? Math.round(last.diastolic.inMillimetersOfMercury) : null;
+    try {
+      // BP se mide pocas veces al día — usar ventana de 24h
+      const bpStart = new Date(now.getTime() - BP_WINDOW_HOURS * 60 * 60 * 1000);
+      const bpTimeRange = {
+        operator : 'between',
+        startTime: bpStart.toISOString(),
+        endTime  : now.toISOString(),
+      };
+      const bpData = await HC.readRecords('BloodPressure', { timeRangeFilter: bpTimeRange });
+      console.log('[HC] BloodPressure records (24h):', bpData?.records?.length ?? 0);
+      if (bpData?.records?.length > 0) {
+        const last = bpData.records[bpData.records.length - 1];
+        console.log('[HC] BP último registro (raw):', JSON.stringify(last));
+        tas = last?.systolic?.inMillimetersOfMercury != null
+          ? Math.round(last.systolic.inMillimetersOfMercury) : null;
+        tad = last?.diastolic?.inMillimetersOfMercury != null
+          ? Math.round(last.diastolic.inMillimetersOfMercury) : null;
+        console.log('[HC] BP extraído: TAS=', tas, 'TAD=', tad);
+      } else {
+        // Diagnóstico: buscar en 72h para ver si Samsung ALGUNA VEZ escribió BP
+        const diagStart = new Date(now.getTime() - 72 * 60 * 60 * 1000);
+        const diagRange = {
+          operator : 'between',
+          startTime: diagStart.toISOString(),
+          endTime  : now.toISOString(),
+        };
+        const diagData = await HC.readRecords('BloodPressure', { timeRangeFilter: diagRange });
+        const diagCount = diagData?.records?.length ?? 0;
+        console.log('[HC] BP: 0 registros en 24h. Diagnóstico 72h:', diagCount, 'registros encontrados');
+        if (diagCount > 0) {
+          // Hay datos pero fuera de 24h — usar el más reciente de todas formas
+          const last = diagData.records[diagData.records.length - 1];
+          console.log('[HC] BP diagnóstico — usando último registro de 72h:', JSON.stringify(last));
+          tas = last?.systolic?.inMillimetersOfMercury != null
+            ? Math.round(last.systolic.inMillimetersOfMercury) : null;
+          tad = last?.diastolic?.inMillimetersOfMercury != null
+            ? Math.round(last.diastolic.inMillimetersOfMercury) : null;
+          console.log('[HC] BP recuperado de historial: TAS=', tas, 'TAD=', tad);
+        } else {
+          console.log('[HC] BP: Samsung Health Monitor NO ha escrito presión arterial a Health Connect en 72h');
+          console.log('[HC] BP: Verificar que Samsung Health Monitor tiene permiso de ESCRITURA en Health Connect');
+        }
+      }
+    } catch (bpErr) {
+      console.log('[HC] BP lectura error (puede no estar soportado):', bpErr?.message || bpErr);
     }
 
+    console.log('[HC] Resumen: FC=', fc, 'SpO2=', spo2, 'Temp=', temperatura, 'TAS=', tas, 'TAD=', tad);
+
     // Si no hay ningún dato útil, devolver null (fallback a manual)
-    if (fc === null && spo2 === null && temperatura === null) return null;
+    if (fc === null && spo2 === null && temperatura === null && tas === null && tad === null) return null;
 
     return {
       source      : 'watch',
@@ -199,9 +276,10 @@ export async function getLatestWatchData() {
       tas,          // null si no calibrado — campo queda editable manualmente
       tad,          // null si no calibrado — campo queda editable manualmente
       timestamp   : now.toISOString(),
-      deviceName  : 'Galaxy Watch 8',
+      deviceName  : 'Health Connect',
     };
-  } catch {
+  } catch (err) {
+    console.log('[HC] getLatestWatchData error general:', err?.message || err);
     return null; // Cualquier error → fallback silencioso a manual
   }
 }
@@ -211,11 +289,23 @@ export async function getLatestWatchData() {
 // Android puede diferir el intervalo hasta ~30 min (Doze mode) — aceptable.
 TaskManager.defineTask(BACKGROUND_SYNC_TASK, async () => {
   try {
-    await getLatestWatchData();
-    // Los datos quedan disponibles para la próxima vez que el usuario abra la app.
-    // useWatchData los leerá en el evento AppState 'active'.
+    const watchData = await getLatestWatchData();
+    
+    if (watchData) {
+      // Intentar obtener el token almacenado de la sesión
+      const token = await SecureStore.getItemAsync('rmhealth_access_token');
+      if (token) {
+        // Enviar a RMHealth backend
+        await apiService.sendVitals(watchData, token);
+        console.log('[HC] Background sync exitoso:', watchData);
+      } else {
+        console.log('[HC] Background sync abortado: Usuario no autenticado');
+      }
+    }
+    
     return TaskManager.TaskManagerTaskBody?.SUCCESS ?? 'success';
-  } catch {
+  } catch (error) {
+    console.log('[HC] Background sync error:', error);
     return TaskManager.TaskManagerTaskBody?.FAILED ?? 'failed';
   }
 });

@@ -18,7 +18,7 @@
 
 export const FEATURES = {
   /**
-   * Integración Galaxy Watch 8 via Health Connect.
+   * Integración de wearables compatibles via Health Connect.
    * false = modo manual, sin módulo nativo de HC.
    * true  = activa sync FC, SpO2, Temp (y BP con calibración).
    */
@@ -28,10 +28,10 @@ export const FEATURES = {
    * Auto-análisis al recibir datos del reloj.
    * Solo tiene efecto si HEALTH_CONNECT_ENABLED = true.
    */
-  WATCH_AUTO_ANALYSIS: false,
+  WATCH_AUTO_ANALYSIS: true,
 
   /**
-   * Badge visual "Galaxy Watch 8 · Live" en HomeScreen.
+   * Badge visual "Health Connect · Live" en HomeScreen.
    * Se activa automáticamente cuando HEALTH_CONNECT_ENABLED = true
    * y hay datos recientes del reloj.
    */

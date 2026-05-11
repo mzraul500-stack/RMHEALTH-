@@ -37,8 +37,8 @@
     },
     "app": {
       "keywords": ["app", "aplicacion", "aplicación", "funciona", "como", "how", "works", "que hace", "what does"],
-      "response_es": "RmHealth es una plataforma de bienestar y coordinación que:\n\n• Registra tus métricas de salud (pulso, presión, oxígeno, glucosa, temperatura)\n• Detecta patrones inusuales en tus datos\n• Te permite llevar un historial con calendario\n• Gestiona recordatorios de medicamentos\n• Coordina respuesta si detecta algo inusual\n\nToda la información es de carácter informativo y no sustituye la consulta médica.",
-      "response_en": "RmHealth is a wellness and coordination platform that:\n\n• Records your health metrics (heart rate, BP, oxygen, glucose, temperature)\n• Detects unusual patterns in your data\n• Lets you keep a calendar-based history\n• Manages medication reminders\n• Coordinates response if something unusual is detected\n\nAll information is for wellness purposes and does not replace medical consultation."
+      "response_es": "RmHealth es una plataforma de bienestar y coordinación que:\n\n• Registra tus métricas de salud (pulso, presión, oxígeno, glucosa, temperatura)\n• Detecta tendencias en tus datos\n• Te permite llevar un historial con calendario\n• Gestiona recomendaciones de bienestar\n• Coordina respuesta si detecta algo inusual\n\nToda la información es de carácter informativo y no sustituye la consulta médica.",
+      "response_en": "RmHealth is a wellness and coordination platform that:\n\n• Records your wellness metrics (heart rate, BP, oxygen, glucose, temperature)\n• Detects trends in your data\n• Lets you keep a calendar-based history\n• Manages wellness recommendations\n• Coordinates response if something unusual is detected\n\nAll information is for wellness purposes and does not replace medical consultation."
     },
     "reloj": {
       "keywords": ["reloj", "watch", "smartwatch", "galaxy", "samsung", "wearable", "dispositivo", "device"],

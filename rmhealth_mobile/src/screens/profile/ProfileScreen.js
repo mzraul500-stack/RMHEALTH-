@@ -14,7 +14,7 @@ const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
   || 'https://rmhealth-api-292048010515.us-central1.run.app/api';
 
 /**
- * ProfileScreen — Complete Medical Profile (M3)
+ * ProfileScreen — Complete Wellness Profile (M3)
  *
  * 6 sections: Personal Data, Allergies, Conditions,
  * Emergency Contacts (2-5), Treating Doctor, Special Instructions.
@@ -87,6 +87,32 @@ export const ProfileScreen = ({ navigation }) => {
         setAllergies(data.allergies || []);
         setConditions(data.conditions || []);
         setContacts(data.emergency_contacts || []);
+
+        // Cache full profile for HomeScreen
+        const conditionsObj = {};
+        (data.conditions || []).forEach(c => {
+          const cName = c.name.toLowerCase();
+          if (cName.includes('diabet')) conditionsObj.diabetico = true;
+          if (cName.includes('hiperten')) conditionsObj.hipertenso = true;
+          if (cName.includes('cardiop')) conditionsObj.cardiopata = true;
+        });
+
+        await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify({
+          name: p.full_name || local.name || user?.full_name || '',
+          age: p.age ? String(p.age) : (local.age || ''),
+          blood: p.blood_type || local.blood || '',
+          weight: p.weight ? String(p.weight) : (local.weight || ''),
+          height: p.height ? String(p.height) : (local.height || ''),
+          doctorName: p.treating_doctor_name || local.doctorName || '',
+          doctorPhone: p.treating_doctor_phone || local.doctorPhone || '',
+          doctorSpecialty: p.treating_doctor_specialty || local.doctorSpecialty || '',
+          specialInstructions: p.special_instructions || local.specialInstructions || '',
+          allergies: (data.allergies || []).map(a => a.name).join(', '),
+          conditions: conditionsObj,
+          contactName: (data.emergency_contacts && data.emergency_contacts.length > 0) ? data.emergency_contacts[0].name : '',
+          contactPhone: (data.emergency_contacts && data.emergency_contacts.length > 0) ? data.emergency_contacts[0].phone : '',
+          lastUpdated: new Date().toISOString(),
+        }));
       } else {
         // Fallback to local only
         setName(local.name || '');
@@ -170,9 +196,21 @@ export const ProfileScreen = ({ navigation }) => {
       if (!res.ok) throw new Error(`Server: ${res.status}`);
 
       // Cache locally
+      const conditionsObj = {};
+      conditions.forEach(c => {
+        const cName = c.name ? c.name.toLowerCase() : '';
+        if (cName.includes('diabet')) conditionsObj.diabetico = true;
+        if (cName.includes('hiperten')) conditionsObj.hipertenso = true;
+        if (cName.includes('cardiop')) conditionsObj.cardiopata = true;
+      });
+
       await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify({
         name, age, blood, weight, height,
         doctorName, doctorPhone, doctorSpecialty, specialInstructions,
+        allergies: allergies.map(a => a.name).join(', '),
+        conditions: conditionsObj,
+        contactName: contacts.length > 0 ? contacts[0].name : '',
+        contactPhone: contacts.length > 0 ? contacts[0].phone : '',
         lastUpdated: new Date().toISOString(),
       }));
       Alert.alert('Guardado', 'Tu perfil ha sido actualizado.');
@@ -289,8 +327,8 @@ export const ProfileScreen = ({ navigation }) => {
           <View style={s.avatar}>
             <Text style={s.avatarText}>{name ? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '?'}</Text>
           </View>
-          <Text style={s.userName}>{name || 'Nuevo Paciente'}</Text>
-          <Text style={s.userRole}>Paciente · RMHealth v2.0</Text>
+          <Text style={s.userName}>{name || 'Nuevo Usuario'}</Text>
+          <Text style={s.userRole}>Usuario · RMHealth v2.0</Text>
         </View>
 
         {/* 1. Personal Data */}
@@ -346,7 +384,7 @@ export const ProfileScreen = ({ navigation }) => {
 
         {/* 3. Conditions */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Condiciones Médicas</Text>
+          <Text style={s.sectionTitle}>Perfil de Salud</Text>
           {conditions.map(c => (
             <View key={c.id} style={s.listItem}>
               <View style={s.listInfo}>
@@ -391,8 +429,8 @@ export const ProfileScreen = ({ navigation }) => {
 
         {/* 5. Treating Doctor */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Médico Tratante</Text>
-          <TextInput style={s.input} value={doctorName} onChangeText={setDoctorName} placeholder="Nombre del médico" placeholderTextColor="#94A3B8" />
+          <Text style={s.sectionTitle}>Contacto Principal / Especialista</Text>
+          <TextInput style={s.input} value={doctorName} onChangeText={setDoctorName} placeholder="Nombre del especialista" placeholderTextColor="#94A3B8" />
           <View style={[s.row, { marginTop: 8 }]}>
             <TextInput style={[s.input, { flex: 1, marginRight: 6 }]} value={doctorPhone} onChangeText={setDoctorPhone} placeholder="Teléfono" placeholderTextColor="#94A3B8" keyboardType="phone-pad" />
             <TextInput style={[s.input, { flex: 1, marginLeft: 6 }]} value={doctorSpecialty} onChangeText={setDoctorSpecialty} placeholder="Especialidad" placeholderTextColor="#94A3B8" />
@@ -402,7 +440,7 @@ export const ProfileScreen = ({ navigation }) => {
         {/* 6. Special Instructions */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>Instrucciones Especiales</Text>
-          <Text style={s.hint}>Información crítica para paramédicos.</Text>
+          <Text style={s.hint}>Información de seguridad importante.</Text>
           <TextInput
             style={[s.input, { height: 90, textAlignVertical: 'top' }]}
             value={specialInstructions} onChangeText={setSpecialInstructions}
@@ -414,7 +452,7 @@ export const ProfileScreen = ({ navigation }) => {
         {/* Emergency Card Button */}
         {navigation && (
           <TouchableOpacity style={s.cardBtn} onPress={() => navigation.navigate('EmergencyCard')}>
-            <Text style={s.cardBtnTxt}>Tarjeta de Emergencia</Text>
+            <Text style={s.cardBtnTxt}>Tarjeta de Información Personal</Text>
           </TouchableOpacity>
         )}
 

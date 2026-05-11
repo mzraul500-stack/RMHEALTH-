@@ -15,6 +15,7 @@ import {
   Alert,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { HeartPulse } from 'lucide-react-native';
 
 export function LoginScreen({ onNavigateRegister, onNavigateForgot, onLogin2FA }) {
   const { login } = useAuth();
@@ -64,7 +65,7 @@ export function LoginScreen({ onNavigateRegister, onNavigateForgot, onLogin2FA }
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.logo}>🏥</Text>
+          <HeartPulse size={56} color="#1B7A6E" style={styles.logoIcon} />
           <Text style={styles.appName}>RMHealth</Text>
           <Text style={styles.subtitle}>Monitoreo de Salud Personal</Text>
         </View>
@@ -146,8 +147,8 @@ export function LoginScreen({ onNavigateRegister, onNavigateForgot, onLogin2FA }
 
         {/* Footer disclaimer */}
         <Text style={styles.disclaimer}>
-          RmHealth es una herramienta de monitoreo personal.{'\n'}
-          No constituye un dispositivo médico.
+          RMHealth proporciona observaciones preventivas.{'\n'}
+          No constituye diagnóstico médico ni sustituye atención médica profesional.
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -158,7 +159,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   header: { alignItems: 'center', marginBottom: 32 },
-  logo: { fontSize: 56, marginBottom: 8 },
+  logoIcon: { marginBottom: 8 },
   appName: {
     fontSize: 32, fontWeight: '900', color: '#1B4F72',
     letterSpacing: -1,

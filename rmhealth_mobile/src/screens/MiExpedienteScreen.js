@@ -1,6 +1,6 @@
 /**
- * MiExpedienteScreen — Unified Clinical Record View
- * Phase 7 (M9) — NOM-004 compliant medical record
+ * MiExpedienteScreen — Unified Wellness Record View
+ * Phase 7 (M9) — Wellness record
  *
  * Features:
  * - Summary stats (measurements, days, alerts, medications)
@@ -39,27 +39,27 @@ export function MiExpedienteScreen() {
 
   const tr = useCallback((key) => {
     const texts = {
-      title: { es: 'Mi Expediente Clinico', en: 'My Clinical Record' },
-      subtitle: { es: 'Resumen de tu historial medico', en: 'Summary of your medical history' },
-      download_pdf: { es: 'Descargar Expediente PDF', en: 'Download Record PDF' },
+      title: { es: 'Mi Historial de Bienestar', en: 'My Wellness Record' },
+      subtitle: { es: 'Resumen de tu historial preventivo', en: 'Summary of your wellness history' },
+      download_pdf: { es: 'Descargar Historial PDF', en: 'Download History PDF' },
       downloading: { es: 'Generando PDF...', en: 'Generating PDF...' },
       measurements: { es: 'Mediciones', en: 'Measurements' },
       monitoring_days: { es: 'Dias monitoreados', en: 'Monitoring days' },
       alerts: { es: 'Alertas', en: 'Alerts' },
       active_meds: { es: 'Medicamentos activos', en: 'Active medications' },
-      conditions: { es: 'Condiciones medicas', en: 'Medical conditions' },
+      conditions: { es: 'Perfil de salud', en: 'Health profile' },
       allergies: { es: 'Alergias', en: 'Allergies' },
       corrections: { es: 'Correcciones', en: 'Corrections' },
       first_reading: { es: 'Primera lectura', en: 'First reading' },
       last_reading: { es: 'Ultima lectura', en: 'Last reading' },
       no_data_yet: { es: 'Sin datos registrados aun', en: 'No data recorded yet' },
       immutability_notice: {
-        es: 'Los registros medicos son inmutables. Solo se pueden agregar notas de correccion, nunca editar o eliminar datos originales.',
-        en: 'Medical records are immutable. Only correction notes can be added, original data can never be edited or deleted.',
+        es: 'Los registros son inmutables para mantener la integridad de los datos.',
+        en: 'Records are immutable to maintain data integrity.',
       },
-      nom004_notice: {
-        es: 'Conservacion minima de 5 anios conforme a NOM-004-SSA3-2012.',
-        en: 'Minimum 5-year retention per NOM-004-SSA3-2012.',
+      preventive_notice: {
+        es: 'RMHealth es una herramienta de monitoreo preventivo de bienestar.',
+        en: 'RMHealth is a preventive wellness monitoring tool.',
       },
       error_load: { es: 'Error al cargar expediente', en: 'Error loading record' },
       error_pdf: { es: 'Error al generar PDF', en: 'Error generating PDF' },
@@ -216,7 +216,7 @@ export function MiExpedienteScreen() {
       </View>
       <View style={[s.legalCard, { marginTop: 8 }]}>
         <FileText size={16} color="#64748B" strokeWidth={2} />
-        <Text style={s.legalText}>{tr('nom004_notice')}</Text>
+        <Text style={s.legalText}>{tr('preventive_notice')}</Text>
       </View>
     </ScrollView>
   );

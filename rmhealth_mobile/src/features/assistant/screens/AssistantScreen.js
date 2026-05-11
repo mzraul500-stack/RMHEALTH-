@@ -24,8 +24,8 @@ export const AssistantScreen = () => {
       id: '0',
       type: 'bot',
       text: language === 'en'
-        ? 'Hi! I\'m **RM Coach**, your wellness assistant.\n\nYou can ask me about:\n• Your health metrics\n• Weekly summary\n• Medications\n• How the app works\n\nTry writing "summary" or ask about blood pressure!'
-        : '¡Hola! Soy **RM Coach**, tu asistente de bienestar.\n\nPuedes preguntarme sobre:\n• Tus métricas de salud\n• Resumen semanal\n• Medicamentos\n• Cómo funciona la app\n\n¡Escribe "resumen" o pregunta sobre presión arterial!',
+        ? 'Hi! I\'m **RM Coach**, your wellness assistant.\n\nYou can ask me about:\n• Your wellness metrics\n• Weekly summary\n• Wellness recommendations\n• How the app works\n\nTry writing "summary" or ask about blood pressure!'
+        : '¡Hola! Soy **RM Coach**, tu asistente de bienestar.\n\nPuedes preguntarme sobre:\n• Tus métricas de salud\n• Resumen semanal\n• Recomendaciones de bienestar\n• Cómo funciona la app\n\n¡Escribe "resumen" o pregunta sobre presión arterial!',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);

@@ -11,37 +11,56 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, SafeAreaView,
+  ActivityIndicator, SafeAreaView, Alert, Platform,
+  KeyboardAvoidingView, ScrollView, BackHandler
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 
 const CODE_LENGTH = 6;
-const EXPIRY_SECONDS = 600; // 10 minutes
+const RESEND_DELAY_SECONDS = 60; // 60 seconds for resend
 
 export function TwoFactorScreen({ userId, onSuccess, onBack }) {
-  const { verify2FA, login: authLogin } = useAuth();
+  const { verify2FA, resend2FA } = useAuth();
 
   const [code, setCode] = useState(Array(CODE_LENGTH).fill(''));
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [timeLeft, setTimeLeft] = useState(EXPIRY_SECONDS);
+  const [resendTimer, setResendTimer] = useState(RESEND_DELAY_SECONDS);
   const [canResend, setCanResend] = useState(false);
 
   const inputRefs = useRef([]);
 
+  // Hardware back button support
+  useEffect(() => {
+    const backAction = () => {
+      if (onBack) {
+        onBack();
+        return true;
+      }
+      return false;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [onBack]);
+
   // Countdown timer
   useEffect(() => {
-    if (timeLeft <= 0) {
+    if (resendTimer <= 0) {
       setCanResend(true);
       return;
     }
 
     const timer = setInterval(() => {
-      setTimeLeft(prev => prev - 1);
+      setResendTimer(prev => prev - 1);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [timeLeft]);
+  }, [resendTimer]);
 
   const formatTime = (seconds) => {
     const min = Math.floor(seconds / 60);
@@ -98,118 +117,151 @@ export function TwoFactorScreen({ userId, onSuccess, onBack }) {
     }
   };
 
-  const handleResend = () => {
-    // Reset timer and disable resend
-    setTimeLeft(EXPIRY_SECONDS);
-    setCanResend(false);
-    setError('');
-    setCode(Array(CODE_LENGTH).fill(''));
-    inputRefs.current[0]?.focus();
-    // The login endpoint already sends a new code
+  const handleResend = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+      await resend2FA(userId);
+      // Reset timer and disable resend
+      setResendTimer(RESEND_DELAY_SECONDS);
+      setCanResend(false);
+      setCode(Array(CODE_LENGTH).fill(''));
+      inputRefs.current[0]?.focus();
+      Alert.alert('Código Enviado', 'Hemos enviado un nuevo código de verificación a tu correo electrónico.');
+    } catch (e) {
+      setError(e.message || 'Error al reenviar el código');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        {/* Back Button */}
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={onBack}
-          accessibilityLabel="Regresar a inicio de sesión"
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.backText}>← Regresar</Text>
-        </TouchableOpacity>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.iconCircle}>
-            <Text style={styles.icon}>🔐</Text>
+          {/* Back Button */}
+          <View style={styles.topBar}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={onBack}
+              accessibilityLabel="Regresar"
+            >
+              <Text style={styles.backText}>← Regresar</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.title}>Verificación</Text>
-          <Text style={styles.subtitle}>
-            Ingresa el código de 6 dígitos que enviamos a tu correo
-          </Text>
-        </View>
 
-        {/* Error */}
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>⚠️ {error}</Text>
-          </View>
-        ) : null}
-
-        {/* Code Input */}
-        <View style={styles.codeContainer}>
-          {code.map((digit, index) => (
-            <TextInput
-              key={index}
-              ref={(ref) => (inputRefs.current[index] = ref)}
-              style={[
-                styles.codeInput,
-                digit ? styles.codeInputFilled : null,
-                error ? styles.codeInputError : null,
-              ]}
-              value={digit}
-              onChangeText={(text) => handleCodeChange(text.replace(/[^0-9]/g, ''), index)}
-              onKeyPress={(e) => handleKeyPress(e, index)}
-              keyboardType="number-pad"
-              maxLength={1}
-              selectTextOnFocus
-              accessibilityLabel={`Dígito ${index + 1} del código de verificación`}
-            />
-          ))}
-        </View>
-
-        {/* Timer */}
-        <View style={styles.timerContainer}>
-          {timeLeft > 0 ? (
-            <Text style={styles.timerText}>
-              El código expira en <Text style={styles.timerBold}>{formatTime(timeLeft)}</Text>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.iconCircle}>
+              <Text style={styles.icon}>🔐</Text>
+            </View>
+            <Text style={styles.title}>Verificación</Text>
+            <Text style={styles.subtitle}>
+              Ingresa el código de 6 dígitos que enviamos a tu correo
             </Text>
-          ) : (
-            <Text style={styles.timerExpired}>El código ha expirado</Text>
-          )}
-        </View>
+          </View>
 
-        {/* Verify Button */}
-        <TouchableOpacity
-          style={[styles.primaryButton, isLoading && styles.disabledButton]}
-          onPress={() => handleVerify()}
-          disabled={isLoading}
-          accessibilityLabel="Verificar código"
-          accessibilityRole="button"
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.primaryButtonText}>VERIFICAR</Text>
-          )}
-        </TouchableOpacity>
+          {/* Error */}
+          {error ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>⚠️ {error}</Text>
+            </View>
+          ) : null}
 
-        {/* Resend */}
-        <TouchableOpacity
-          style={[styles.resendButton, !canResend && styles.resendDisabled]}
-          onPress={handleResend}
-          disabled={!canResend}
-          accessibilityLabel="Reenviar código de verificación"
-        >
-          <Text style={[styles.resendText, !canResend && styles.resendTextDisabled]}>
-            {canResend ? '📧 Reenviar Código' : `Reenviar en ${formatTime(timeLeft)}`}
-          </Text>
-        </TouchableOpacity>
-      </View>
+          {/* Code Input */}
+          <View style={styles.codeContainer}>
+            {code.map((digit, index) => (
+              <TextInput
+                key={index}
+                ref={(ref) => (inputRefs.current[index] = ref)}
+                style={[
+                  styles.codeInput,
+                  digit ? styles.codeInputFilled : null,
+                  error ? styles.codeInputError : null,
+                ]}
+                value={digit}
+                onChangeText={(text) => handleCodeChange(text.replace(/[^0-9]/g, ''), index)}
+                onKeyPress={(e) => handleKeyPress(e, index)}
+                keyboardType="number-pad"
+                maxLength={1}
+                selectTextOnFocus
+                accessibilityLabel={`Dígito ${index + 1} del código de verificación`}
+              />
+            ))}
+          </View>
+
+          {/* Timer Info */}
+          <View style={styles.timerContainer}>
+            <Text style={styles.timerText}>
+              El código es válido por <Text style={styles.timerBold}>10 minutos</Text>
+            </Text>
+          </View>
+
+          {/* Verify Button */}
+          <TouchableOpacity
+            style={[styles.primaryButton, isLoading && styles.disabledButton]}
+            onPress={() => handleVerify()}
+            disabled={isLoading}
+            accessibilityLabel="Verificar código"
+            accessibilityRole="button"
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryButtonText}>VERIFICAR</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.resendButton, (!canResend || isLoading) && styles.resendDisabled]}
+            onPress={handleResend}
+            disabled={!canResend || isLoading}
+            accessibilityLabel="Reenviar código de verificación"
+          >
+            <Text style={[styles.resendText, (!canResend || isLoading) && styles.resendTextDisabled]}>
+              {canResend ? '📧 Reenviar Código' : `Reenviar en ${formatTime(resendTimer)}`}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Emergencia: Botón para Cancelar / Cambiar Correo que nunca se bloquea */}
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={onBack}
+            accessibilityLabel="Cambiar correo o cancelar"
+          >
+            <Text style={styles.cancelText}>❌ Cambiar correo / Cancelar</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  content: { flex: 1, padding: 24, justifyContent: 'center' },
-  backButton: {
-    position: 'absolute', top: 20, left: 20, zIndex: 10,
-    paddingVertical: 8, paddingHorizontal: 16,
+  scrollContent: { 
+    flexGrow: 1, 
+    padding: 24, 
+    paddingTop: Platform.OS === 'android' ? 40 : 24, 
+    justifyContent: 'flex-start' 
   },
-  backText: { color: '#3BAFAA', fontSize: 16, fontWeight: '700' },
+  topBar: {
+    width: '100%',
+    alignItems: 'flex-start',
+    marginBottom: 40,
+    marginTop: 10,
+  },
+  backButton: {
+    paddingVertical: 10, paddingHorizontal: 16,
+    backgroundColor: '#E0F2F1', borderRadius: 8,
+  },
+  backText: { color: '#1B7A6E', fontSize: 16, fontWeight: '800' },
   header: { alignItems: 'center', marginBottom: 32 },
   iconCircle: {
     width: 80, height: 80, borderRadius: 40,
@@ -253,7 +305,25 @@ const styles = StyleSheet.create({
     color: '#FFFFFF', fontSize: 16, fontWeight: '900', letterSpacing: 1,
   },
   resendButton: { alignItems: 'center', marginTop: 20, paddingVertical: 12 },
-  resendDisabled: { opacity: 0.4 },
-  resendText: { color: '#3BAFAA', fontSize: 15, fontWeight: '700' },
-  resendTextDisabled: { color: '#94A3B8' },
+  resendDisabled: {
+    backgroundColor: '#F3F4F6',
+  },
+  resendText: { color: '#0D9488', fontSize: 15, fontWeight: '700' },
+  resendTextDisabled: {
+    color: '#9CA3AF',
+  },
+  cancelButton: {
+    marginTop: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
+    alignItems: 'center',
+    width: '100%',
+  },
+  cancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#DC2626',
+  },
 });

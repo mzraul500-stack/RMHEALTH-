@@ -36,7 +36,7 @@ export const HomeScreen = () => {
   const [glucosa, setGlucosa] = useState('');
   const [temp, setTemp] = useState('36.6');
   const [contexto, setContexto] = useState('reposo');
-  // Galaxy Watch 8 — source tracking per field
+  // Health Connect — source tracking per field
   const [watchSource, setWatchSource] = useState({ fc: false, spo2: false, temp: false });
   const lastWatchTsRef      = useRef(null);
   const handleSendVitalsRef = useRef(null);
@@ -46,19 +46,19 @@ export const HomeScreen = () => {
   const [sending, setSending] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const [lastSync, setLastSync] = useState(null);
-  const [patientProfile, setPatientProfile] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
 
   useEffect(() => {
     const loadProfile = async () => {
       try {
         const raw = await AsyncStorage.getItem('@rmhealth/patient_profile');
-        if (raw) setPatientProfile(JSON.parse(raw));
+        if (raw) setUserProfile(JSON.parse(raw));
       } catch (e) { console.warn('[HomeScreen] Profile load failed:', e); }
     };
     loadProfile();
   }, []);
 
-  // ── Health Connect — Galaxy Watch 8 ──────────────────────────
+  // ── Health Connect ───────────────────────────────────────────
   const { watchData, isWatchAvailable, permissionsGranted, refreshWatchData, isLoading: isWatchLoading, error: watchError } = useWatchData();
 
   // Auto-fill cuando llegan datos nuevos del reloj
@@ -133,7 +133,7 @@ export const HomeScreen = () => {
         
         if (isManual) setStatusMsg(language === 'en' ? 'ANALYZING DATA...' : 'ANALIZANDO DATOS...');
         const payload = {
-          usuario_id: patientProfile?.name?.toLowerCase().replace(/\s+/g, '_') || 'paciente_001',
+          usuario_id: userProfile?.name?.toLowerCase().replace(/\s+/g, '_') || 'usuario_001',
           ecg: 1.0, ppg: 1.0,
           oxigeno: ox, presion_sistolica: sys, presion_diastolica: dia,
           frecuencia_cardiaca: hr, temperatura: t || 36.6,
@@ -141,17 +141,17 @@ export const HomeScreen = () => {
           ubicacion_lat: coords.lat, ubicacion_lon: coords.lon,
           dispositivo_id: 'manual_input', emergencia_detectada: false,
           contexto: contexto,
-          // FULL CLINICAL CONTEXT FOR FDA/COFEPRIS COMPLIANCE
+          // WELLNESS CONTEXT FOR PREVENTIVE MONITORING
           patient_context: {
-            nombre_completo: patientProfile?.name || 'Usuario RMHealth',
-            edad: parseInt(patientProfile?.age) || 30,
-            diabetico: !!patientProfile?.conditions?.diabetico,
-            hipertenso: !!patientProfile?.conditions?.hipertenso,
-            cardiopata: !!patientProfile?.conditions?.cardiopata,
-            tipo_sangre: patientProfile?.blood || 'No especificado',
-            contacto_emergencia_nombre: patientProfile?.contactName || '',
-            contacto_emergencia_tel: patientProfile?.contactPhone || '',
-            alergias: patientProfile?.allergies ? patientProfile.allergies.split(',').map(a => a.trim()) : []
+            nombre_completo: userProfile?.name || 'Usuario RMHealth',
+            edad: parseInt(userProfile?.age) || 30,
+            diabetico: !!userProfile?.conditions?.diabetico,
+            hipertenso: !!userProfile?.conditions?.hipertenso,
+            cardiopata: !!userProfile?.conditions?.cardiopata,
+            tipo_sangre: userProfile?.blood || 'No especificado',
+            contacto_emergencia_nombre: userProfile?.contactName || '',
+            contacto_emergencia_tel: userProfile?.contactPhone || '',
+            alergias: userProfile?.allergies ? userProfile.allergies.split(',').map(a => a.trim()) : []
           }
         };
 
@@ -160,15 +160,23 @@ export const HomeScreen = () => {
         setLastSync(new Date().toLocaleTimeString());
         await LocalHistoryService.saveRecord(response, payload);
 
-        // Check for preventive alerts that require escalation
+        // Trigger modal for preventive alerts OR if ml_triage is HIGH/CRITICAL
+        const hasCriticalTriage = response.ml_triage && (response.ml_triage.level === 'CRITICAL' || response.ml_triage.level === 'HIGH');
+        let critical = null;
+        
         if (response.preventive_alerts && response.preventive_alerts.length > 0) {
-          const critical = response.preventive_alerts.find(
+          critical = response.preventive_alerts.find(
             a => a.severity === 'HIGH' || a.severity === 'MEDIUM'
           );
-          if (critical) {
-            setCriticalAlert(critical);
-            setShowCriticalModal(true);
-          }
+        }
+
+        if (critical || hasCriticalTriage) {
+          setCriticalAlert(critical || { 
+            severity: response.ml_triage?.level || 'HIGH', 
+            message: 'Anomalía crítica detectada en signos vitales.',
+            recommendation: response.analysis?.recomendacion || 'Requiere atención médica.'
+          });
+          setShowCriticalModal(true);
         }
       } catch (err) {
         // ... (existing catch logic)
@@ -198,33 +206,38 @@ export const HomeScreen = () => {
     try {
       const coords = await LocationService.getCurrentLocation();
       const payload = {
-        usuario_id: patientProfile?.name?.toLowerCase().replace(/\s+/g, '_') || 'paciente_001',
+        usuario_id: userProfile?.name?.toLowerCase().replace(/\s+/g, '_') || 'usuario_001',
         ecg: 1.0, ppg: 1.0, oxigeno: 82,
         presion_sistolica: 210, presion_diastolica: 130,
         frecuencia_cardiaca: 180, temperatura: parseFloat(temp) || 36.6,
         ubicacion_lat: coords.lat, ubicacion_lon: coords.lon,
         dispositivo_id: 'manual_sos', emergencia_detectada: true,
-        // FULL CLINICAL CONTEXT FOR FDA/COFEPRIS COMPLIANCE
+        // WELLNESS CONTEXT FOR PREVENTIVE MONITORING
         patient_context: {
-          nombre_completo: patientProfile?.name || 'Usuario RMHealth',
-          edad: parseInt(patientProfile?.age) || 30,
-          diabetico: !!patientProfile?.conditions?.diabetico,
-          hipertenso: !!patientProfile?.conditions?.hipertenso,
-          cardiopata: !!patientProfile?.conditions?.cardiopata,
-          tipo_sangre: patientProfile?.blood || 'No especificado',
-          contacto_emergencia_nombre: patientProfile?.contactName || '',
-          contacto_emergencia_tel: patientProfile?.contactPhone || '',
-          alergias: patientProfile?.allergies ? patientProfile.allergies.split(',').map(a => a.trim()) : []
+          nombre_completo: userProfile?.name || 'Usuario RMHealth',
+          edad: parseInt(userProfile?.age) || 30,
+          diabetico: !!userProfile?.conditions?.diabetico,
+          hipertenso: !!userProfile?.conditions?.hipertenso,
+          cardiopata: !!userProfile?.conditions?.cardiopata,
+          tipo_sangre: userProfile?.blood || 'No especificado',
+          contacto_emergencia_nombre: userProfile?.contactName || '',
+          contacto_emergencia_tel: userProfile?.contactPhone || '',
+          alergias: userProfile?.allergies ? userProfile.allergies.split(',').map(a => a.trim()) : []
         }
       };
       const response = await apiService.sendVitals(payload);
       setLastResult(response);
       setLastSync(new Date().toLocaleTimeString());
       await LocalHistoryService.saveSOS(response);
-      Alert.alert(
-        language === 'en' ? 'ALERT SENT' : 'ALERTA ENVIADA',
-        language === 'en' ? 'Emergency protocol activated.' : 'Protocolo de emergencia activado.'
-      );
+      
+      // Directly open the modal
+      setCriticalAlert({ 
+        severity: 'CRITICAL', 
+        message: 'Botón SOS Activado Manualmente',
+        recommendation: 'Protocolo de emergencia activado. Por favor, mantén la calma.'
+      });
+      setShowCriticalModal(true);
+      
     } catch (e) {
       Alert.alert('Error', language === 'en' ? 'Could not reach server.' : 'No se pudo contactar al servidor.');
     }
@@ -272,8 +285,8 @@ export const HomeScreen = () => {
     'CRÍTICO': COLORS.error, ALTO: '#F97316', MEDIO: '#F59E0B', BAJO: COLORS.success, NORMAL: COLORS.success,
   }[normalizedLevel] || COLORS.text;
 
-  const greeting = patientProfile?.name
-    ? `${language === 'en' ? 'Hello' : 'Hola'}, ${patientProfile.name.split(' ')[0]} 👋`
+  const greeting = userProfile?.name
+    ? `${language === 'en' ? 'Hello' : 'Hola'}, ${userProfile.name.split(' ')[0]} 👋`
     : (language === 'en' ? 'Hello 👋' : 'Hola 👋');
 
   return (
@@ -284,7 +297,7 @@ export const HomeScreen = () => {
           {/* ── HEADER ── */}
           <View style={s.header}>
             <View>
-              <Text style={s.greeting}>{patientProfile?.name ? patientProfile.name.split(' ')[0] : 'RMHealth'}</Text>
+              <Text style={s.greeting}>{userProfile?.name ? userProfile.name.split(' ')[0] : 'RMHealth'}</Text>
             </View>
             <TouchableOpacity style={s.langBtn} onPress={toggleLanguage}>
               <Text style={s.langText}>{tr('language_switch')}</Text>
@@ -358,13 +371,13 @@ export const HomeScreen = () => {
               ))}
             </ScrollView>
 
-            {/* ── Botón Galaxy Watch 8 — trigger MANUAL (nunca automático) ── */}
+            {/* ── Botón Health Connect — trigger MANUAL (nunca automático) ── */}
             <TouchableOpacity
               style={[s.watchBtn, isWatchLoading && s.watchBtnLoading]}
               onPress={refreshWatchData}
               disabled={isWatchLoading}
               accessibilityRole="button"
-              accessibilityLabel={language === 'en' ? 'Read heart rate from Galaxy Watch 8' : 'Leer frecuencia cardíaca del Galaxy Watch 8'}
+              accessibilityLabel={language === 'en' ? 'Read heart rate from Health Connect' : 'Leer frecuencia cardíaca desde Health Connect'}
               testID="btn-watch-read-hr"
             >
               {isWatchLoading
@@ -373,8 +386,8 @@ export const HomeScreen = () => {
               }
               <Text style={s.watchBtnText}>
                 {isWatchLoading
-                  ? (language === 'en' ? 'Reading Watch…' : 'Leyendo Watch…')
-                  : (language === 'en' ? 'Read from Galaxy Watch 8' : 'Leer del Galaxy Watch 8')}
+                  ? (language === 'en' ? 'Reading Health Connect…' : 'Leyendo Health Connect…')
+                  : (language === 'en' ? 'Read from Health Connect' : 'Leer desde Health Connect')}
               </Text>
             </TouchableOpacity>
 
@@ -399,7 +412,7 @@ export const HomeScreen = () => {
               </View>
             )}
 
-            {/* Diagnóstico de Calibración de BP */}
+            {/* Estado de Calibración de BP */}
             {watchSource.fc && !watchSource.tas && (
               <View style={s.calibrationRow}>
                 <AlertTriangle size={12} color="#2563EB" strokeWidth={2} style={{ marginRight: 4 }} />
@@ -411,12 +424,12 @@ export const HomeScreen = () => {
               </View>
             )}
 
-            {/* Badge Galaxy Watch 8 — visible solo cuando hay datos del reloj */}
+            {/* Badge Health Connect — visible solo cuando hay datos del reloj */}
             {(watchSource.fc || watchSource.spo2 || watchSource.temp || watchSource.tas || watchSource.tad) && (
               <View style={s.watchBadge}>
                 <Watch size={12} color="#0D9488" strokeWidth={2} />
                 <Text style={s.watchBadgeText}>
-                  Galaxy Watch 8 · {isWatchAvailable ? (language === 'en' ? 'Live' : 'En vivo') : '--'}
+                  Health Connect · {isWatchAvailable ? (language === 'en' ? 'Live' : 'En vivo') : '--'}
                 </Text>
               </View>
             )}
@@ -438,13 +451,13 @@ export const HomeScreen = () => {
               onPress={() => handleSendVitals(true)}
               disabled={sending}
               activeOpacity={0.8}
-              accessibilityLabel={language === 'en' ? 'Detect patterns button' : 'Botón detectar patrones'}
+              accessibilityLabel={language === 'en' ? 'Detect patterns button' : 'Botón detectar tendencias'}
               accessibilityHint={language === 'en' ? 'Sends your vital signs for analysis' : 'Envía tus signos vitales para análisis'}
               accessibilityRole="button"
             >
               <Text style={s.submitText}>
                 {sending 
-                  ? statusMsg 
+                  ? (statusMsg || (language === 'en' ? 'ANALYZING...' : 'ANALIZANDO...'))
                   : (language === 'en' ? 'ANALYZE DATA' : 'ANALIZAR DATOS')}
               </Text>
             </TouchableOpacity>
@@ -454,7 +467,7 @@ export const HomeScreen = () => {
           {lastResult && (
             <View style={s.resultCard}>
               <Text style={s.resultTitle}>
-                {language === 'en' ? 'Pattern Detection Report' : 'Reporte de Detección de Patrones'}
+                {language === 'en' ? 'Trend Detection Report' : 'Reporte de Detección de Tendencias'}
               </Text>
 
               {mlTriage && (
@@ -534,6 +547,14 @@ export const HomeScreen = () => {
           {/* ── SOS ── */}
           <View style={s.sosSection}>
             <EmergencyButton onPress={handleManualSOS} />
+          </View>
+
+          {/* ── DISCLAIMER ── */}
+          <View style={s.disclaimerSection}>
+            <Text style={s.disclaimerText}>
+              RMHealth proporciona observaciones preventivas.{'\n'}
+              No constituye diagnóstico médico ni sustituye atención médica profesional.
+            </Text>
           </View>
 
           <View style={{ height: 20 }} />
@@ -696,7 +717,7 @@ const s = StyleSheet.create({
   contextPillTextActive: {
     color: COLORS.primary,
   },
-  // Galaxy Watch 8 badge
+  // Health Connect badge
   watchBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: '#E0F2F1', borderRadius: 8,
@@ -704,7 +725,7 @@ const s = StyleSheet.create({
     alignSelf: 'flex-start', borderWidth: 1, borderColor: '#0D9488' + '40',
   },
   watchBadgeText: { fontSize: 11, fontWeight: '700', color: '#0D9488' },
-  // Galaxy Watch 8 — botón manual de lectura
+  // Health Connect — botón manual de lectura
   watchBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#E0F2F1', borderRadius: 10,
@@ -739,4 +760,13 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: '#3B82F6' + '50',
   },
   calibrationText: { fontSize: 11, fontWeight: '600', color: '#1E3A8A', flex: 1, lineHeight: 16 },
+
+  disclaimerSection: {
+    marginHorizontal: 16, marginTop: 24, padding: 12,
+    backgroundColor: '#F8FAFC', borderRadius: 12,
+    borderWidth: 1, borderColor: '#E2E8F0',
+  },
+  disclaimerText: {
+    color: '#64748B', fontSize: 11, textAlign: 'center', lineHeight: 16, fontWeight: '500',
+  },
 });

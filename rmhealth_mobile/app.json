@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -22,14 +22,25 @@
         }
       ],
       "expo-secure-store",
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 26
+          }
+        }
+      ],
+      "./plugins/withHealthConnect.js"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.rmhealth.vitalguardian"
+      "bundleIdentifier": "com.rmhealth.vitalguardianapp"
     },
     "android": {
-      "package": "com.rmhealth.vitalguardian",
+      "package": "com.rmhealth.vitalguardianapp",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

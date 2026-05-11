@@ -16,11 +16,7 @@ export function AboutScreen() {
     { label: tr('about_name'), value: 'RmHealth' },
     { label: tr('about_version'), value: APP_VERSION },
     { label: tr('about_developer'), value: 'Raúl Morales Zepeda' },
-    { label: tr('about_contact'), value: 'contacto@rmhealth.ai' },
-    { label: tr('about_indautor'), value: '03-2025-070109072500-01' },
-    { label: tr('about_patent'), value: tr('about_patent_value') },
-    { label: tr('about_classification'), value: tr('about_classification_value') },
-    { label: tr('about_regulatory'), value: tr('about_regulatory_value') },
+    { label: tr('about_contact'), value: 'rmlive@rmhealth.ai' },
   ];
 
   return (

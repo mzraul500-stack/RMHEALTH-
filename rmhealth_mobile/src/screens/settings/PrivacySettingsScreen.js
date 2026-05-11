@@ -294,8 +294,8 @@ export function PrivacySettingsScreen() {
         </Text>
         <Text style={s.sectionDesc}>
           {isEs
-            ? 'Esta acción elimina permanentemente tu cuenta y todos los datos asociados. No se puede deshacer. Derecho al olvido (GDPR Art. 17, LFPDPPP Art. 25).'
-            : 'This action permanently deletes your account and all associated data. This cannot be undone. Right to erasure (GDPR Art. 17, LFPDPPP Art. 25).'}
+            ? 'Esta acción elimina permanentemente tu cuenta y todos los datos asociados. No se puede deshacer. Derecho al olvido (GDPR Art. 17, LFPDPPP Art. 25). Para más detalles, visita rmhealth.ai/privacy'
+            : 'This action permanently deletes your account and all associated data. This cannot be undone. Right to erasure (GDPR Art. 17, LFPDPPP Art. 25). For more details, visit rmhealth.ai/privacy'}
         </Text>
 
         <View style={s.deleteBox}>

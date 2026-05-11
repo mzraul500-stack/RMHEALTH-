@@ -1,8 +1,8 @@
 /**
- * EmergencyCardScreen — QR-based Emergency Card (M3)
+ * EmergencyCardScreen — QR-based Personal Information Card (M3)
  *
- * Generates a temporary public URL (24h) with patient critical data.
- * Paramedics can scan QR without needing login.
+ * Generates a temporary public URL (24h) with user wellness data.
+ * Contacts can scan QR without needing login.
  *
  * © 2025 MORALES ZEPEDA RAUL | Registro INDAUTOR: 03-2025-070109072500-01
  */
@@ -55,7 +55,7 @@ export function EmergencyCardScreen() {
     if (!cardUrl) return;
     try {
       await Share.share({
-        message: `🆘 Tarjeta de Emergencia RMHealth\n\nEscanea o abre este enlace para ver datos médicos críticos:\n${cardUrl}\n\nVálida por 24 horas.`,
+        message: `⚠️ Tarjeta de Información Personal RMHealth\n\nEscanea o abre este enlace para ver datos de seguridad:\n${cardUrl}\n\nVálida por 24 horas.`,
         url: cardUrl,
       });
     } catch (e) {}
@@ -67,18 +67,18 @@ export function EmergencyCardScreen() {
   const contacts = profile?.emergency_contacts || [];
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
+    <ScrollView style={s.container} contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}>
       {/* Card Preview */}
       <View style={s.card}>
         <View style={s.cardHeader}>
-          <Text style={s.cardIcon}>🆘</Text>
-          <Text style={s.cardTitle}>TARJETA DE EMERGENCIA</Text>
-          <Text style={s.cardSubtitle}>RMHealth Emergency Card</Text>
+          <Text style={s.cardIcon}>⚠️</Text>
+          <Text style={s.cardTitle}>INFORMACIÓN PERSONAL</Text>
+          <Text style={s.cardSubtitle}>RMHealth Info Card</Text>
         </View>
 
         <View style={s.cardBody}>
           <View style={s.infoRow}>
-            <Text style={s.infoLabel}>Paciente</Text>
+            <Text style={s.infoLabel}>Usuario</Text>
             <Text style={s.infoValue}>{p.full_name || 'Sin nombre'}</Text>
           </View>
           {p.blood_type && (
@@ -108,7 +108,7 @@ export function EmergencyCardScreen() {
         {/* Conditions */}
         {conditions.length > 0 && (
           <View style={s.cardSection}>
-            <Text style={s.cardSectionTitle}>CONDICIONES</Text>
+            <Text style={s.cardSectionTitle}>PERFIL DE SALUD</Text>
             {conditions.map((c, i) => (
               <Text key={i} style={s.cardItem}>• {c.name}</Text>
             ))}
@@ -129,7 +129,7 @@ export function EmergencyCardScreen() {
       {/* QR Section */}
       {cardUrl ? (
         <View style={s.qrSection}>
-          <Text style={s.qrTitle}>Escanea para acceso de emergencia</Text>
+          <Text style={s.qrTitle}>Escanea para acceso de seguridad</Text>
           <View style={s.qrBox}>
             <QRCode value={cardUrl} size={200} backgroundColor="#FFF" color="#1B4F72" />
           </View>
@@ -146,14 +146,14 @@ export function EmergencyCardScreen() {
       ) : (
         <TouchableOpacity style={s.generateBtn} onPress={generateCard} disabled={loading}>
           {loading ? <ActivityIndicator color="#FFF" /> : (
-            <Text style={s.generateBtnTxt}>🆘 Generar Tarjeta de Emergencia</Text>
+            <Text style={s.generateBtnTxt}>⚠️ Generar Tarjeta Personal</Text>
           )}
         </TouchableOpacity>
       )}
 
       <Text style={s.disclaimer}>
-        Esta tarjeta es válida por 24 horas y proporciona acceso público de solo lectura a datos médicos críticos.
-        Conforme a NOM-004-SSA3 y GDPR Art. 9(2)(c) — procesamiento necesario para proteger intereses vitales.
+        Esta tarjeta es válida por 24 horas y proporciona acceso de solo lectura a datos del perfil.
+        RMHealth es una herramienta preventiva. No constituye diagnóstico ni tratamiento.
       </Text>
     </ScrollView>
   );
