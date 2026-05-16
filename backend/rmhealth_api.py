@@ -435,6 +435,24 @@ def get_db_connection():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_dpl_invite ON doctor_patient_links(invite_code) WHERE invite_code IS NOT NULL")
         cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_professional BOOLEAN DEFAULT FALSE")
 
+        # --- FCM Device Token table (P1 — Firebase Cloud Messaging) ---
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS fcm_tokens (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id TEXT NOT NULL,
+                fcm_token TEXT NOT NULL,
+                platform TEXT DEFAULT 'android',
+                device_id TEXT,
+                active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_fcm_user "
+            "ON fcm_tokens(user_id, active)"
+        )
+
         conn.commit()
         # Return DictCursor so it acts like sqlite3.Row mapping
         cursor.close()
@@ -4183,6 +4201,105 @@ async def cancel_emergency(
     except Exception as e:
         logger.error("Error cancelling emergency %s: %s", emergency_id, e)
         raise HTTPException(status_code=500, detail="Error al cancelar la alerta")
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+# ================================================================
+# FCM TOKEN REGISTRATION (P1 — Firebase Cloud Messaging)
+# ================================================================
+
+class FCMTokenRequest(BaseModel):
+    """Request body for FCM token registration."""
+    usuario_id: str = Field(..., min_length=1, description="User identifier")
+    fcm_token: str = Field(..., min_length=10, description="FCM device token")
+    platform: str = Field(default="android", description="Device platform")
+    device_id: Optional[str] = Field(default=None, description="Unique device identifier")
+
+
+@app.post("/api/devices/fcm-token")
+async def register_fcm_token(data: FCMTokenRequest, user=Depends(verify_token)):
+    """Register or update a device's FCM push notification token.
+
+    Upserts by (user_id, device_id). If device_id is not provided,
+    upserts by (user_id, fcm_token).
+
+    Security:
+      - Requires Bearer token authentication.
+      - Logs token suffix only (no PII).
+      - Token stored in fcm_tokens table for push dispatch.
+    """
+    conn = None
+    token_suffix = f"...{data.fcm_token[-8:]}" if len(data.fcm_token) > 8 else "***"
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if data.device_id:
+            # Upsert by user_id + device_id
+            cursor.execute(
+                """
+                INSERT INTO fcm_tokens (user_id, fcm_token, platform, device_id, active, updated_at)
+                VALUES (%(user_id)s, %(fcm_token)s, %(platform)s, %(device_id)s, TRUE, CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id, device_id)
+                    WHERE device_id IS NOT NULL
+                DO UPDATE SET
+                    fcm_token = EXCLUDED.fcm_token,
+                    platform = EXCLUDED.platform,
+                    active = TRUE,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                {
+                    "user_id": data.usuario_id,
+                    "fcm_token": data.fcm_token,
+                    "platform": data.platform,
+                    "device_id": data.device_id,
+                },
+            )
+        else:
+            # Deactivate old tokens for this user, insert new one
+            cursor.execute(
+                "UPDATE fcm_tokens SET active = FALSE, updated_at = CURRENT_TIMESTAMP "
+                "WHERE user_id = %s AND fcm_token != %s",
+                (data.usuario_id, data.fcm_token),
+            )
+            cursor.execute(
+                """
+                INSERT INTO fcm_tokens (user_id, fcm_token, platform, active, updated_at)
+                VALUES (%s, %s, %s, TRUE, CURRENT_TIMESTAMP)
+                ON CONFLICT DO NOTHING
+                """,
+                (data.usuario_id, data.fcm_token, data.platform),
+            )
+
+        conn.commit()
+        logger.info(
+            f"[FCM-TOKEN] Registered token {token_suffix} "
+            f"for user (platform: {data.platform})"
+        )
+
+        return {
+            "status": "ok",
+            "message": "FCM token registered",
+            "platform": data.platform,
+        }
+
+    except Exception as e:
+        logger.error(f"[FCM-TOKEN] Registration failed: {e}")
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        raise HTTPException(
+            status_code=500,
+            detail="Error registering FCM token",
+        )
     finally:
         if conn:
             try:

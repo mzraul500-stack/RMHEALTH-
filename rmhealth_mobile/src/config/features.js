@@ -36,4 +36,13 @@ export const FEATURES = {
    * y hay datos recientes del reloj.
    */
   WATCH_BADGE_VISIBLE: false,
+
+  /**
+   * Firebase Cloud Messaging — Notificaciones push.
+   * false = desactivado, no se registra token FCM.
+   * true  = solicita permiso de notificaciones y registra token en backend.
+   * Requiere google-services.json en android/app/.
+   * Canal complementario a SMS/Twilio, NO reemplazo.
+   */
+  FCM_NOTIFICATIONS_ENABLED: false,
 };
