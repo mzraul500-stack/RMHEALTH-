@@ -3,8 +3,8 @@
  * Integración de wearables compatibles vía Health Connect → RMHealth
  * (Probado inicialmente con Galaxy Watch 8)
  *
- * Parámetros automáticos activos: FC, SpO2, Temperatura
- * Parámetros manuales por ahora: TAS, TAD (hasta calibración BP), Glucosa
+ * Parámetros automáticos activos: FC, SpO2, Temperatura, TAS, TAD
+ * Parámetros manuales: Glucosa
  *
  * CardioWave: cuando esté disponible, este servicio recibirá datos vía
  * 5G/eSIM directamente sin Health Connect. Reemplazar getLatestWatchData()
@@ -28,17 +28,15 @@ try {
 
 // ── Constantes ──────────────────────────────────────────────────
 const BACKGROUND_SYNC_TASK = 'RMHEALTH_WATCH_SYNC';
-const DATA_WINDOW_HOURS    = 72;  // FC, SpO2, Temp — ampliado a 72h para asegurar que muestre datos
-const BP_WINDOW_HOURS      = 168; // PA — ampliado a 1 semana para diagnóstico
+const DATA_WINDOW_HOURS    = 72;   // FC, SpO2, Temp — ventana amplia
+const BP_WINDOW_HOURS      = 168;  // PA — 1 semana (mediciones infrecuentes)
 
-// Permisos completos para sync futuro (SpO2, Temp, BP).
-// BloodPressure incluido para que fluya automáticamente cuando
-// el usuario calibre el reloj — sin cambios de código requeridos.
+// Permisos completos — incluye BloodPressure para leer presión arterial.
 const HC_PERMISSIONS = [
   { accessType: 'read', recordType: 'HeartRate'        },
   { accessType: 'read', recordType: 'OxygenSaturation' },
   { accessType: 'read', recordType: 'BodyTemperature'  },
-  { accessType: 'read', recordType: 'BloodPressure'    }, // futuro-ready
+  { accessType: 'read', recordType: 'BloodPressure'    },
 ];
 
 // Permiso mínimo para el botón "Leer desde Health Connect" (Fase 1).
@@ -70,6 +68,23 @@ async function initHealthConnect() {
   }
 }
 
+// ── Verificar permisos concedidos ───────────────────────────────
+// Usa getGrantedPermissions() para saber exactamente qué permisos tiene RMHealth.
+// IMPORTANTE: Debe inicializar HC primero, si no getGrantedPermissions falla silenciosamente.
+export async function checkGrantedPermissions() {
+  if (!HC) return [];
+  try {
+    const initResult = await initHealthConnect();
+    if (!initResult.available) return [];
+    const granted = await HC.getGrantedPermissions();
+    console.log('[HC] Permisos CONCEDIDOS:', JSON.stringify(granted));
+    return granted || [];
+  } catch (err) {
+    console.log('[HC] getGrantedPermissions error:', err?.message || err);
+    return [];
+  }
+}
+
 export async function requestWatchPermissions() {
   if (!HC) return { available: false, status: null, reason: "NO_MODULE" };
   const initResult = await initHealthConnect();
@@ -81,7 +96,17 @@ export async function requestWatchPermissions() {
     const granted = await HC.requestPermission(HC_PERMISSIONS);
     console.log("[HC] requestPermission result:", JSON.stringify(granted));
     if (!granted || granted.length === 0) return false;
-    return true; // Si devolvió arreglo, asumimos que concedió los permisos
+    
+    // Verificar explícitamente que BloodPressure fue concedido
+    const hasBP = granted.some(
+      (p) => p.recordType === 'BloodPressure' && p.accessType === 'read'
+    );
+    if (!hasBP) {
+      console.log('[HC] ⚠️ BloodPressure NO fue concedido. Permisos obtenidos:', 
+        granted.map(p => p.recordType).join(', '));
+    }
+    
+    return true;
   } catch (error) {
     console.log("[HC] requestPermission error:", error);
     return false;
@@ -141,8 +166,8 @@ export async function getLatestHeartRate() {
       },
     });
     if (!hrData?.records?.length) return null;
-    const last   = hrData.records[hrData.records.length - 1];
-    const sample = last.samples?.[last.samples.length - 1];
+    const latest = hrData.records[0]; // más reciente
+    const sample = latest.samples?.[latest.samples.length - 1];
     return sample?.beatsPerMinute != null
       ? Math.round(sample.beatsPerMinute)
       : null;
@@ -156,6 +181,9 @@ export async function getLatestHeartRate() {
  * Devuelve el objeto watchData con los últimos vitales del reloj,
  * o null si Health Connect no está disponible o no hay datos recientes.
  *
+ * IMPORTANTE: Health Connect devuelve records en orden DESCENDENTE
+ * (el más reciente en records[0]). Siempre usamos records[0].
+ *
  * @returns {Promise<WatchData|null>}
  *
  * @typedef {Object} WatchData
@@ -163,13 +191,13 @@ export async function getLatestHeartRate() {
  * @property {number|null} fc        - Frecuencia cardíaca (bpm)
  * @property {number|null} spo2      - Saturación de oxígeno (%)
  * @property {number|null} temperatura - Temperatura corporal (°C)
- * @property {number|null} tas       - Presión sistólica (mmHg) — null hasta calibración
- * @property {number|null} tad       - Presión diastólica (mmHg) — null hasta calibración
+ * @property {number|null} tas       - Presión sistólica (mmHg)
+ * @property {number|null} tad       - Presión diastólica (mmHg)
  * @property {string} timestamp      - ISO timestamp del dato más reciente
  * @property {string} deviceName
  */
 export async function getLatestWatchData() {
-  if (!HC) return null; // módulo no disponible — fallback silencioso
+  if (!HC) return null;
   const initResult = await initHealthConnect();
   if (!initResult.available) return null;
 
@@ -182,105 +210,92 @@ export async function getLatestWatchData() {
   };
 
   try {
+    // Helper: get the LAST record (most recent) — HC returns ascending order
+    const lastRecord = (records) => records && records.length > 0 ? records[records.length - 1] : null;
+
+    let latestMeasurementTime = null; // track the real measurement timestamp
+
     // ── Frecuencia Cardíaca ──────────────────────────────────
     let fc = null;
     const hrData = await HC.readRecords('HeartRate', { timeRangeFilter: timeRange });
-    console.log('[HC] HeartRate records:', hrData?.records?.length ?? 0);
     if (hrData?.records?.length > 0) {
-      const last   = hrData.records[hrData.records.length - 1];
-      const sample = last.samples?.[last.samples.length - 1];
+      const latest = lastRecord(hrData.records);
+      const sample = latest.samples?.[latest.samples.length - 1];
       fc = sample ? Math.round(sample.beatsPerMinute) : null;
+      const hrTime = latest.endTime || latest.startTime || sample?.time;
+      console.log('[HC] HR: records=', hrData.records.length,
+        'latest.endTime=', hrTime,
+        'value=', fc, 'bpm');
+      if (hrTime && (!latestMeasurementTime || hrTime > latestMeasurementTime)) {
+        latestMeasurementTime = hrTime;
+      }
     }
 
     // ── SpO2 ─────────────────────────────────────────────────
     let spo2 = null;
     const spo2Data = await HC.readRecords('OxygenSaturation', { timeRangeFilter: timeRange });
-    console.log('[HC] OxygenSaturation records:', spo2Data?.records?.length ?? 0);
     if (spo2Data?.records?.length > 0) {
-      const last = spo2Data.records[spo2Data.records.length - 1];
-      spo2 = last?.percentage != null ? Math.round(last.percentage) : null;
+      const latest = lastRecord(spo2Data.records);
+      spo2 = latest?.percentage != null ? Math.round(latest.percentage) : null;
+      const spo2Time = latest.time || latest.endTime || latest.startTime;
+      console.log('[HC] SpO2: records=', spo2Data.records.length,
+        'time=', spo2Time,
+        'value=', spo2, '%');
+      if (spo2Time && (!latestMeasurementTime || spo2Time > latestMeasurementTime)) {
+        latestMeasurementTime = spo2Time;
+      }
     }
 
     // ── Temperatura ──────────────────────────────────────────
     let temperatura = null;
     const tempData = await HC.readRecords('BodyTemperature', { timeRangeFilter: timeRange });
-    console.log('[HC] BodyTemperature records:', tempData?.records?.length ?? 0);
     if (tempData?.records?.length > 0) {
-      const last = tempData.records[tempData.records.length - 1];
-      // Health Connect almacena en Celsius nativo en Samsung Health
-      temperatura = last?.temperature?.inCelsius != null
-        ? parseFloat(last.temperature.inCelsius.toFixed(1))
+      const latest = lastRecord(tempData.records);
+      temperatura = latest?.temperature?.inCelsius != null
+        ? parseFloat(latest.temperature.inCelsius.toFixed(1))
         : null;
     }
 
-    // ── Presión Arterial (ventana extendida 24h) ─────────────────
+    // ── Presión Arterial ─────────────────────────────────────
     let tas = null;
     let tad = null;
-    try {
-      // BP se mide pocas veces al día — usar ventana de 24h
-      const bpStart = new Date(now.getTime() - BP_WINDOW_HOURS * 60 * 60 * 1000);
-      const bpTimeRange = {
-        operator : 'between',
-        startTime: bpStart.toISOString(),
-        endTime  : now.toISOString(),
-      };
-      const bpData = await HC.readRecords('BloodPressure', { timeRangeFilter: bpTimeRange });
-      console.log('[HC] BloodPressure records (24h):', bpData?.records?.length ?? 0);
-      if (bpData?.records?.length > 0) {
-        const last = bpData.records[bpData.records.length - 1];
-        console.log('[HC] BP último registro (raw):', JSON.stringify(last));
-        tas = last?.systolic?.inMillimetersOfMercury != null
-          ? Math.round(last.systolic.inMillimetersOfMercury) : null;
-        tad = last?.diastolic?.inMillimetersOfMercury != null
-          ? Math.round(last.diastolic.inMillimetersOfMercury) : null;
-        console.log('[HC] BP extraído: TAS=', tas, 'TAD=', tad);
-      } else {
-        // Diagnóstico: buscar en 72h para ver si Samsung ALGUNA VEZ escribió BP
-        const diagStart = new Date(now.getTime() - 72 * 60 * 60 * 1000);
-        const diagRange = {
-          operator : 'between',
-          startTime: diagStart.toISOString(),
-          endTime  : now.toISOString(),
-        };
-        const diagData = await HC.readRecords('BloodPressure', { timeRangeFilter: diagRange });
-        const diagCount = diagData?.records?.length ?? 0;
-        console.log('[HC] BP: 0 registros en 24h. Diagnóstico 72h:', diagCount, 'registros encontrados');
-        if (diagCount > 0) {
-          // Hay datos pero fuera de 24h — usar el más reciente de todas formas
-          const last = diagData.records[diagData.records.length - 1];
-          console.log('[HC] BP diagnóstico — usando último registro de 72h:', JSON.stringify(last));
-          tas = last?.systolic?.inMillimetersOfMercury != null
-            ? Math.round(last.systolic.inMillimetersOfMercury) : null;
-          tad = last?.diastolic?.inMillimetersOfMercury != null
-            ? Math.round(last.diastolic.inMillimetersOfMercury) : null;
-          console.log('[HC] BP recuperado de historial: TAS=', tas, 'TAD=', tad);
-        } else {
-          console.log('[HC] BP: Samsung Health Monitor NO ha escrito presión arterial a Health Connect en 72h');
-          console.log('[HC] BP: Verificar que Samsung Health Monitor tiene permiso de ESCRITURA en Health Connect');
-        }
-      }
-    } catch (bpErr) {
-      console.log('[HC] BP lectura error (puede no estar soportado):', bpErr?.message || bpErr);
-    }
+    const bpData = await HC.readRecords('BloodPressure', { timeRangeFilter: timeRange });
 
-    console.log('[HC] Resumen: FC=', fc, 'SpO2=', spo2, 'Temp=', temperatura, 'TAS=', tas, 'TAD=', tad);
+    if (bpData?.records?.length > 0) {
+      const latest = lastRecord(bpData.records);
+      tas = latest?.systolic?.inMillimetersOfMercury != null
+        ? Math.round(latest.systolic.inMillimetersOfMercury) : null;
+      tad = latest?.diastolic?.inMillimetersOfMercury != null
+        ? Math.round(latest.diastolic.inMillimetersOfMercury) : null;
+      const bpTime = latest.time || latest.endTime || latest.startTime;
+      console.log('[HC] BP: records=', bpData.records.length,
+        'time=', bpTime,
+        'value=', tas, '/', tad);
+      if (bpTime && (!latestMeasurementTime || bpTime > latestMeasurementTime)) {
+        latestMeasurementTime = bpTime;
+      }
+    }
 
     // Si no hay ningún dato útil, devolver null (fallback a manual)
     if (fc === null && spo2 === null && temperatura === null && tas === null && tad === null) return null;
+
+    // Use actual measurement time, fall back to current time
+    const effectiveTimestamp = latestMeasurementTime || now.toISOString();
+    console.log('[HC] 📊 Datos leídos — medición real:', latestMeasurementTime, 'vs ahora:', now.toISOString());
 
     return {
       source      : 'watch',
       fc,
       spo2,
       temperatura,
-      tas,          // null si no calibrado — campo queda editable manualmente
-      tad,          // null si no calibrado — campo queda editable manualmente
-      timestamp   : now.toISOString(),
+      tas,
+      tad,
+      timestamp   : effectiveTimestamp,
       deviceName  : 'Health Connect',
     };
   } catch (err) {
-    console.log('[HC] getLatestWatchData error general:', err?.message || err);
-    return null; // Cualquier error → fallback silencioso a manual
+    console.log('[HC] getLatestWatchData error:', err?.message || err);
+    return null;
   }
 }
 

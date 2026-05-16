@@ -412,14 +412,14 @@ export const HomeScreen = () => {
               </View>
             )}
 
-            {/* Estado de Calibración de BP */}
+            {/* Aviso sutil cuando el reloj envía FC pero no BP */}
             {watchSource.fc && !watchSource.tas && (
               <View style={s.calibrationRow}>
-                <AlertTriangle size={12} color="#2563EB" strokeWidth={2} style={{ marginRight: 4 }} />
+                <Activity size={12} color="#2563EB" strokeWidth={2} style={{ marginRight: 4 }} />
                 <Text style={s.calibrationText}>
                   {language === 'en' 
-                    ? 'BP not detected. Galaxy Watch requires manual calibration with a cuff every 28 days.' 
-                    : 'Presión Arterial no detectada. El reloj requiere calibración con baumanómetro de brazo (cada 28 días) para enviar datos.'}
+                    ? 'No recent blood pressure reading from your watch. Please enter manually or take a new measurement.' 
+                    : 'Sin lectura reciente de presión arterial del reloj. Ingresa manualmente o toma una nueva medición.'}
                 </Text>
               </View>
             )}

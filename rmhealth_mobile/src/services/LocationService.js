@@ -75,6 +75,12 @@ export const LocationService = {
    */
   async startBackgroundTracking() {
     try {
+      const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
+      if (bgStatus !== 'granted') {
+        console.log('[LocationService] Background tracking aborted: Permission not granted.');
+        return;
+      }
+
       const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
       if (!hasStarted) {
         await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
@@ -90,7 +96,7 @@ export const LocationService = {
         console.log('[LocationService] Background tracking started.');
       }
     } catch (e) {
-      console.error('[LocationService] Failed to start bg tracking:', e);
+      console.log('[LocationService] Failed to start bg tracking:', e?.message || e);
     }
   }
 };
