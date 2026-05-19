@@ -1290,6 +1290,72 @@ async def get_vital_signs_trends(user=Depends(verify_token)):
             except: pass
 
 
+# ── LONGITUDINAL TREND ANALYSIS (feature-flagged) ──────────────
+# Multi-window (24h/7d/30d/90d) trend analysis — additive, non-diagnostic.
+# Separated from /api/vital-signs/trends to avoid regression.
+# Requires TREND_ANALYSIS_ENABLED=true in environment.
+try:
+    from services.trend_analysis_service import get_trends_for_user, is_enabled as trend_enabled
+except ImportError:
+    try:
+        from backend.services.trend_analysis_service import get_trends_for_user, is_enabled as trend_enabled
+    except ImportError:
+        def get_trends_for_user(*args, **kwargs): return None
+        def trend_enabled(): return False
+
+
+@app.get("/api/trends/{usuario_id}")
+async def get_longitudinal_trends(usuario_id: str, user=Depends(verify_token)):
+    """
+    Longitudinal trend analysis across multiple time windows.
+    Feature-gated by TREND_ANALYSIS_ENABLED env var.
+    
+    Returns: mean, min, max, count, direction per vital per window.
+    This is CONTEXTUAL/PREVENTIVE data — NOT a diagnosis.
+    """
+    if not trend_enabled():
+        raise HTTPException(
+            status_code=404,
+            detail="Trend analysis is not enabled"
+        )
+    
+    # Verify the requesting user matches or has authority
+    requester_id = user.get("sub") or user.get("user_id")
+    if not requester_id:
+        raise HTTPException(status_code=401, detail="User ID not found")
+    
+    # Basic authorization: user can only see their own trends
+    if requester_id != usuario_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        trends = get_trends_for_user(conn, usuario_id)
+        
+        if trends is None:
+            return {
+                "status": "no_data",
+                "message": "No trend data available",
+                "is_non_diagnostic": True,
+            }
+        
+        return {
+            "status": "success",
+            **trends,
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[TrendAnalysis] Endpoint error: {e}")
+        raise HTTPException(status_code=500, detail="Error computing trends")
+    finally:
+        if conn:
+            try: conn.close()
+            except: pass
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint + auto-migration for new tables."""
