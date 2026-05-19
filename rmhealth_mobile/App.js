@@ -15,6 +15,7 @@ import { AboutScreen } from './src/screens/AboutScreen';
 import { AssistantScreen } from './src/features/assistant/screens/AssistantScreen';
 import { PreventiveAlertsScreen } from './src/screens/PreventiveAlertsScreen';
 import { SleepModeScreen } from './src/screens/SleepModeScreen';
+import { HealthConnectOnboarding } from './src/screens/HealthConnectOnboarding';
 
 // Auth Screens (M1)
 import { LoginScreen } from './src/screens/auth/LoginScreen';
@@ -41,7 +42,7 @@ import { MiExpedienteScreen } from './src/screens/MiExpedienteScreen';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { COLORS } from './src/theme';
-import { User, ShieldAlert, Watch, Lock, Stethoscope, CreditCard, Info, LogOut, FileText, Home as HomeIcon, Bot, CalendarDays, Pill, Settings, Moon } from 'lucide-react-native';
+import { User, ShieldAlert, Shield, Watch, Lock, Stethoscope, CreditCard, Info, LogOut, FileText, Home as HomeIcon, Bot, CalendarDays, Pill, Settings, Moon } from 'lucide-react-native';
 import { LocationService } from './src/services/LocationService';
 import * as Notifications from 'expo-notifications';
 import { FEATURES } from './src/config/features';
@@ -87,6 +88,7 @@ function MoreStack() {
       <Stack.Screen name="About" component={AboutScreen} options={{ title: 'RmHealth' }} />
       {/* Sleep context screen — only reachable when SLEEP_MODE_ENABLED=true */}
       <Stack.Screen name="SleepMode" component={SleepModeScreen} options={{ title: 'Descanso' }} />
+      <Stack.Screen name="HealthConnectPermissions" component={HealthConnectOnboarding} options={{ title: 'Permisos Health Connect' }} />
     </Stack.Navigator>
   );
 }
@@ -106,6 +108,8 @@ function MoreMenuScreen({ navigation }) {
     { IconComp: Info, label: 'Acerca de RmHealth', screen: 'About' },
     // Sleep context — conditionally shown via feature flag
     ...(FEATURES.SLEEP_MODE_ENABLED ? [{ IconComp: Moon, label: 'Descanso', screen: 'SleepMode' }] : []),
+    // Health Connect permissions — always visible when HC is enabled
+    ...(FEATURES.HEALTH_CONNECT_ENABLED ? [{ IconComp: Shield, label: 'Permisos Health Connect', screen: 'HealthConnectPermissions' }] : []),
   ];
 
   const handleLogout = () => {

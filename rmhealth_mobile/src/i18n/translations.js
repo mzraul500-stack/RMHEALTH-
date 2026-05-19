@@ -119,6 +119,20 @@ El uso de esta aplicación implica la aceptación plena de los presentes términ
     nav_settings:    'Configuración',
     nav_about:       'Acerca de',
 
+    // === SLEEP/REST ===
+    sleep_title: 'Descanso',
+    sleep_card_title: 'Descanso',
+    sleep_no_data: 'Sin datos de sueño',
+    sleep_history: 'Historial de Descanso',
+    sleep_last_night: 'Última noche',
+    sleep_averages: 'Promedios',
+    sleep_calendar: 'Calendario de Descanso',
+    sleep_refresh: 'Actualizar datos de sueño',
+    sleep_good: 'Buen descanso',
+    sleep_fair: 'Descanso moderado',
+    sleep_poor: 'Descanso insuficiente',
+    sleep_disclaimer: 'Los datos de descanso son informativos y de bienestar general. No constituyen diagnóstico médico.',
+
     // === AUDIT LOG ===
     audit_consent_accepted: 'Consentimiento informado aceptado',
     audit_privacy_accepted: 'Aviso de privacidad aceptado',
@@ -233,6 +247,20 @@ Use of this application constitutes full acceptance of these terms.`,
     nav_profile:     'Profile',
     nav_settings:    'Settings',
     nav_about:       'About',
+
+    // === SLEEP/REST ===
+    sleep_title: 'Rest',
+    sleep_card_title: 'Rest',
+    sleep_no_data: 'No sleep data',
+    sleep_history: 'Rest History',
+    sleep_last_night: 'Last night',
+    sleep_averages: 'Averages',
+    sleep_calendar: 'Rest Calendar',
+    sleep_refresh: 'Refresh sleep data',
+    sleep_good: 'Good rest',
+    sleep_fair: 'Moderate rest',
+    sleep_poor: 'Insufficient rest',
+    sleep_disclaimer: 'Rest data is informational and for general wellness. It does not constitute a medical diagnosis.',
 
     // === AUDIT LOG ===
     audit_consent_accepted: 'Informed consent accepted',

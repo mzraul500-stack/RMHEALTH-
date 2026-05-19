@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import mockData from '../data/medications_mock.json';
-import { scheduleMedicationReminder, cancelMedicationReminder, requestNotificationPermissions } from '../../../services/NotificationService';
+import { scheduleMedicationReminder, cancelMedicationReminder, requestNotificationPermissions, syncAllMedicationReminders } from '../../../services/NotificationService';
 import { saveDailySnapshot } from '../services/AdherenceTracker';
 
 // Storage keys
@@ -78,6 +78,12 @@ export function useMedications() {
       }
 
       setMedications(meds);
+
+      // Sync all medication reminders on app startup
+      // This ensures reminders survive app restarts and device reboots
+      syncAllMedicationReminders(meds).catch(err =>
+        console.warn('[useMedications] Reminder sync error (non-blocking):', err)
+      );
 
       // Load dose log
       const logRaw = await AsyncStorage.getItem(DOSE_LOG_KEY);

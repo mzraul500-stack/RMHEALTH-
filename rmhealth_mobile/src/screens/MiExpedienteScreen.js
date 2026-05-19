@@ -15,14 +15,16 @@ import {
   StyleSheet, View, Text, ScrollView, TouchableOpacity,
   ActivityIndicator, Alert, Linking, RefreshControl,
 } from 'react-native';
-import { COLORS } from '../theme';
+import { COLORS, SPACING } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useWatchData } from '../hooks/useWatchData';
 import {
   FileText, Download, Heart, Activity, Pill,
   ShieldAlert, Calendar, AlertTriangle, ClipboardList,
-  Stethoscope, Droplets, Edit3,
+  Stethoscope, Droplets, Edit3, Moon, Watch,
 } from 'lucide-react-native';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL
@@ -36,6 +38,8 @@ export function MiExpedienteScreen() {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [localCounts, setLocalCounts] = useState({ sleep: 0, doses: 0 });
+  const { heartRate, spo2, systolic, diastolic, lastSync = null } = useWatchData() || {};
 
   const tr = useCallback((key) => {
     const texts = {
@@ -89,6 +93,22 @@ export function MiExpedienteScreen() {
   }, [accessToken]);
 
   useEffect(() => { loadSummary(); }, [loadSummary]);
+
+  // Load local data counts
+  useEffect(() => {
+    (async () => {
+      try {
+        const sleepRaw = await AsyncStorage.getItem('@rmhealth/sleep_history_v1');
+        const doseRaw = await AsyncStorage.getItem('@rmhealth/dose_log');
+        const sleepArr = sleepRaw ? JSON.parse(sleepRaw) : [];
+        const doseObj = doseRaw ? JSON.parse(doseRaw) : {};
+        setLocalCounts({
+          sleep: sleepArr.length,
+          doses: Object.values(doseObj).reduce((acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0), 0),
+        });
+      } catch (e) { /* silent */ }
+    })();
+  }, [refreshing]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -208,6 +228,51 @@ export function MiExpedienteScreen() {
           <Text style={s.emptyText}>{tr('no_data_yet')}</Text>
         </View>
       )}
+
+      {/* Health Connect Live Vitals */}
+      <View style={[s.vitalsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={s.vitalsHeader}>
+          <Watch size={18} color={colors.primary} strokeWidth={2} />
+          <Text style={[s.vitalsTitle, { color: colors.text }]}>Signos Vitales — Health Connect</Text>
+        </View>
+        <View style={s.vitalsGrid}>
+          <View style={s.vitalItem}>
+            <Heart size={16} color="#EF4444" strokeWidth={2} />
+            <Text style={s.vitalValue}>{heartRate || '—'}</Text>
+            <Text style={s.vitalLabel}>FC bpm</Text>
+          </View>
+          <View style={s.vitalItem}>
+            <Droplets size={16} color="#3B82F6" strokeWidth={2} />
+            <Text style={s.vitalValue}>{spo2 || '—'}</Text>
+            <Text style={s.vitalLabel}>SpO2 %</Text>
+          </View>
+          <View style={s.vitalItem}>
+            <Activity size={16} color="#8B5CF6" strokeWidth={2} />
+            <Text style={s.vitalValue}>{systolic && diastolic ? `${systolic}/${diastolic}` : '—'}</Text>
+            <Text style={s.vitalLabel}>PA mmHg</Text>
+          </View>
+        </View>
+        {lastSync && (
+          <Text style={s.vitalSync}>Última sincronización: {new Date(lastSync).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</Text>
+        )}
+      </View>
+
+      {/* Local Data Counts */}
+      <View style={[s.localDataCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[s.localDataTitle, { color: colors.text }]}>Registros Locales</Text>
+        <View style={s.localDataRow}>
+          <Moon size={14} color="#6366F1" strokeWidth={2} />
+          <Text style={s.localDataLabel}>Sesiones de sueño registradas</Text>
+          <Text style={[s.localDataValue, { color: colors.primary }]}>{localCounts.sleep}</Text>
+        </View>
+        <View style={s.localDataRow}>
+          <Pill size={14} color="#8B5CF6" strokeWidth={2} />
+          <Text style={s.localDataLabel}>Tomas de medicamento registradas</Text>
+          <Text style={[s.localDataValue, { color: colors.primary }]}>{localCounts.doses}</Text>
+        </View>
+      </View>
+
+
 
       {/* Legal Notices */}
       <View style={s.legalCard}>
@@ -385,6 +450,33 @@ const s = StyleSheet.create({
     flex: 1,
     lineHeight: 16,
   },
+
+  // Vitals Card
+  vitalsCard: {
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  vitalsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  vitalsTitle: { fontSize: 14, fontWeight: '800' },
+  vitalsGrid: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-start' },
+  vitalItem: { alignItems: 'center', gap: 4, minHeight: 56, justifyContent: 'center', flex: 1 },
+  vitalValue: { fontSize: 20, fontWeight: '900', color: '#1E293B' },
+  vitalLabel: { fontSize: 10, fontWeight: '600', color: '#64748B' },
+  vitalSync: { fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 10 },
+
+  // Local Data Card
+  localDataCard: {
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  localDataTitle: { fontSize: 14, fontWeight: '800', marginBottom: 10 },
+  localDataRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  localDataLabel: { fontSize: 13, color: '#64748B', flex: 1 },
+  localDataValue: { fontSize: 16, fontWeight: '900' },
 });
 
 export default MiExpedienteScreen;

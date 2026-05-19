@@ -70,7 +70,14 @@ export const HomeScreen = () => {
   }, []);
 
   // ── Health Connect ───────────────────────────────────────────
-  const { watchData, isWatchAvailable, permissionsGranted, refreshWatchData, isLoading: isWatchLoading, error: watchError, bpInfo, syncBPFromBridge } = useWatchData();
+  const {
+    watchData, isWatchAvailable, permissionsGranted, refreshWatchData,
+    isLoading: isWatchLoading, error: watchError,
+    bpInfo: rawBpInfo, syncBPFromBridge: rawSyncBPFromBridge,
+  } = useWatchData();
+  // Safe defaults — useWatchData may not yet export bpInfo/syncBPFromBridge
+  const bpInfo = rawBpInfo || { isStale: false, lastTime: null, sys: null, dia: null };
+  const syncBPFromBridge = rawSyncBPFromBridge || (() => {});
 
   // Auto-fill cuando llegan datos nuevos del reloj
   useEffect(() => {

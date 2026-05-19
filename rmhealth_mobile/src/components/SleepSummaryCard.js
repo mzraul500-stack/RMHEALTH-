@@ -17,6 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import { COLORS, SPACING } from '../theme';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSleepData } from '../hooks/useSleepData';
+import { formatTimeShort } from '../utils/sleepUtils';
 
 /**
  * Format minutes to short display.
@@ -43,6 +44,10 @@ export const SleepSummaryCard = () => {
     }
   };
 
+  // Extract start/end time from sessions if available
+  const startTime = sleepData?.sessions?.[0]?.start;
+  const endTime = sleepData?.sessions?.[sleepData.sessions.length - 1]?.end;
+
   return (
     <TouchableOpacity
       style={s.card}
@@ -56,14 +61,21 @@ export const SleepSummaryCard = () => {
       <View style={s.content}>
         <Text style={s.title}>{tr('sleep_card_title')}</Text>
         {sleepData ? (
-          <View style={s.dataRow}>
-            <Text style={s.duration}>
-              {formatShort(sleepData.totalMinutes)}
-            </Text>
-            <Text style={s.qualityEmoji}>
-              {sleepData.quality === 'good' ? '🌙' : sleepData.quality === 'fair' ? '🌗' : '⚡'}
-            </Text>
-          </View>
+          <>
+            <View style={s.dataRow}>
+              <Text style={s.duration}>
+                {formatShort(sleepData.totalMinutes)}
+              </Text>
+              <Text style={s.qualityEmoji}>
+                {sleepData.quality === 'good' ? '🌙' : sleepData.quality === 'fair' ? '🌗' : '⚡'}
+              </Text>
+            </View>
+            {startTime && endTime && (
+              <Text style={s.timeRange}>
+                {formatTimeShort(startTime)} → {formatTimeShort(endTime)}
+              </Text>
+            )}
+          </>
         ) : (
           <Text style={s.noData}>{tr('sleep_no_data')}</Text>
         )}
@@ -118,6 +130,11 @@ const s = StyleSheet.create({
   noData: {
     fontSize: 12,
     color: '#94A3B8',
+  },
+  timeRange: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 1,
   },
   chevron: {
     fontSize: 22,

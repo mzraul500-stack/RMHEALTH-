@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   StyleSheet, View, Text, ScrollView, TouchableOpacity,
   ActivityIndicator, SafeAreaView, Modal, RefreshControl,
@@ -8,8 +8,9 @@ import { apiService } from '../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   BarChart3, AlertTriangle, Siren, Heart, Activity, Droplets, Wind,
-  Info, CheckCircle, Lightbulb,
+  Info, CheckCircle, Lightbulb, CalendarDays,
 } from 'lucide-react-native';
+import { CalendarMonthView } from '../components/CalendarMonthView';
 
 // ── Severity Configuration ────────────────────────────────────
 const SEVERITY_CONFIG = {
@@ -51,6 +52,8 @@ export const PreventiveAlertsScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [userId, setUserId] = useState(null);
+  const [alertTab, setAlertTab] = useState('list');
+  const [selectedCalDate, setSelectedCalDate] = useState(null);
 
   useEffect(() => {
     const loadUserId = async () => {
@@ -114,6 +117,30 @@ export const PreventiveAlertsScreen = ({ navigation }) => {
 
   const unacknowledgedCount = alerts.filter(a => !a.acknowledged_at).length;
 
+  // Build markedDates for calendar
+  const markedDates = useMemo(() => {
+    const marks = {};
+    alerts.forEach(alert => {
+      const dateStr = alert.created_at?.split('T')[0];
+      if (!dateStr) return;
+      const sevCfg = SEVERITY_CONFIG[alert.severity] || SEVERITY_CONFIG.LOW;
+      if (!marks[dateStr]) {
+        marks[dateStr] = { dots: [], data: [] };
+      }
+      // Avoid duplicate dot colors
+      if (!marks[dateStr].dots.find(d => d.color === sevCfg.color)) {
+        marks[dateStr].dots.push({ color: sevCfg.color, key: alert.severity });
+      }
+      marks[dateStr].data.push(alert);
+    });
+    return marks;
+  }, [alerts]);
+
+  const selectedDayAlerts = useMemo(() => {
+    if (!selectedCalDate) return [];
+    return markedDates[selectedCalDate]?.data || [];
+  }, [selectedCalDate, markedDates]);
+
   if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -157,6 +184,88 @@ export const PreventiveAlertsScreen = ({ navigation }) => {
         </Text>
       </View>
 
+      {/* Tab Bar: Lista | Calendario */}
+      <View style={styles.alertTabBar}>
+        <TouchableOpacity
+          style={[styles.alertTabBtn, alertTab === 'list' && styles.alertTabActive]}
+          onPress={() => setAlertTab('list')}
+        >
+          <Text style={[styles.alertTabText, alertTab === 'list' && styles.alertTabTextActive]}>Lista</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.alertTabBtn, alertTab === 'calendar' && styles.alertTabActive]}
+          onPress={() => setAlertTab('calendar')}
+        >
+          <CalendarDays size={14} color={alertTab === 'calendar' ? COLORS.primary : '#64748B'} />
+          <Text style={[styles.alertTabText, alertTab === 'calendar' && styles.alertTabTextActive]}>Calendario</Text>
+        </TouchableOpacity>
+      </View>
+
+      {alertTab === 'calendar' ? (
+        /* ── Calendar View ── */
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
+        >
+          {/* Legend */}
+          <View style={styles.calLegend}>
+            <View style={styles.calLegendItem}>
+              <View style={[styles.calLegendDot, { backgroundColor: '#DC2626' }]} />
+              <Text style={styles.calLegendText}>Prioritaria</Text>
+            </View>
+            <View style={styles.calLegendItem}>
+              <View style={[styles.calLegendDot, { backgroundColor: '#D97706' }]} />
+              <Text style={styles.calLegendText}>Atención</Text>
+            </View>
+            <View style={styles.calLegendItem}>
+              <View style={[styles.calLegendDot, { backgroundColor: '#64748B' }]} />
+              <Text style={styles.calLegendText}>Informativa</Text>
+            </View>
+          </View>
+
+          <CalendarMonthView
+            markedDates={markedDates}
+            selectedDate={selectedCalDate}
+            onSelectDate={setSelectedCalDate}
+            accentColor={COLORS.primary}
+            language="es"
+          />
+
+          {/* Selected day alerts */}
+          {selectedCalDate && (
+            selectedDayAlerts.length > 0 ? (
+              <View style={styles.calDayCard}>
+                <Text style={styles.calDayTitle}>
+                  {new Date(selectedCalDate + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </Text>
+                {selectedDayAlerts.map((alert, i) => {
+                  const sev = SEVERITY_CONFIG[alert.severity] || SEVERITY_CONFIG.LOW;
+                  return (
+                    <TouchableOpacity
+                      key={i}
+                      style={styles.calAlertRow}
+                      onPress={() => handleAlertPress(alert)}
+                    >
+                      <View style={[styles.calAlertDot, { backgroundColor: sev.color }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.calAlertTitle} numberOfLines={1}>{alert.title}</Text>
+                        <Text style={styles.calAlertMsg} numberOfLines={1}>{alert.message}</Text>
+                      </View>
+                      <Text style={[styles.calAlertSev, { color: sev.color }]}>{sev.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.calDayEmpty}>
+                <Text style={styles.calDayEmptyText}>Sin alertas para este día</Text>
+              </View>
+            )
+          )}
+          <View style={{ height: 30 }} />
+        </ScrollView>
+      ) : (
+      /* ── List View (original) ── */
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={
@@ -224,6 +333,7 @@ export const PreventiveAlertsScreen = ({ navigation }) => {
 
         <View style={{ height: 30 }} />
       </ScrollView>
+      )}
 
       {/* Detail Modal */}
       <Modal
@@ -634,4 +744,76 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
   },
+
+  // Tab Bar
+  alertTabBar: {
+    flexDirection: 'row',
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.xs,
+    marginBottom: SPACING.xs,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    padding: 3,
+  },
+  alertTabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  alertTabActive: {
+    backgroundColor: '#FFFFFF',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  },
+  alertTabText: { fontSize: 13, fontWeight: '700', color: '#64748B' },
+  alertTabTextActive: { color: COLORS.primary },
+
+  // Calendar Legend
+  calLegend: { flexDirection: 'row', gap: 16, marginBottom: 12 },
+  calLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  calLegendDot: { width: 8, height: 8, borderRadius: 4 },
+  calLegendText: { fontSize: 11, color: '#64748B', fontWeight: '600' },
+
+  // Calendar Day Card
+  calDayCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 14,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: 4,
+  },
+  calDayTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 8,
+    textTransform: 'capitalize',
+  },
+  calAlertRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    gap: 8,
+  },
+  calAlertDot: { width: 8, height: 8, borderRadius: 4 },
+  calAlertTitle: { fontSize: 13, fontWeight: '700', color: '#1E293B' },
+  calAlertMsg: { fontSize: 11, color: '#64748B' },
+  calAlertSev: { fontSize: 10, fontWeight: '800' },
+  calDayEmpty: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  calDayEmptyText: { fontSize: 13, color: '#94A3B8', fontStyle: 'italic' },
 });

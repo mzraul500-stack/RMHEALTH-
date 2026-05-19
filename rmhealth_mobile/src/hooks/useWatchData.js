@@ -16,7 +16,11 @@ import {
   requestWatchPermissions,
   getLatestWatchData,
   openHCSettings,
+  writeBloodPressure,
 } from '../services/HealthConnectService';
+
+// BP is considered stale if older than 2 hours
+const BP_STALE_THRESHOLD_MS = 2 * 60 * 60 * 1000;
 
 // Intervalo de polling en milisegundos (15 segundos para mayor responsividad)
 const POLL_INTERVAL_MS = 15000;
@@ -28,10 +32,40 @@ export function useWatchData() {
   const [lastSync, setLastSync]                 = useState(null);
   const [isLoading, setIsLoading]               = useState(false);
   const [error, setError]                       = useState(null);
+  const [bpInfo, setBpInfo]                     = useState({ isStale: false, lastTime: null, sys: null, dia: null });
 
   const intervalRef    = useRef(null);
   const isMountedRef   = useRef(true);
   const pollCountRef   = useRef(0);
+
+  // ── Compute BP staleness ──────────────────────────────────────
+  const computeBpInfo = useCallback((result) => {
+    if (!result) return;
+    const bpTime = result.bpTime;
+    const isStale = bpTime
+      ? (Date.now() - new Date(bpTime).getTime()) > BP_STALE_THRESHOLD_MS
+      : (result.tas == null); // no BP at all = stale
+    setBpInfo({
+      isStale,
+      lastTime: bpTime || null,
+      sys: result.tas || null,
+      dia: result.tad || null,
+    });
+  }, []);
+
+  // ── Sync BP from BPSyncBridge ─────────────────────────────────
+  const syncBPFromBridge = useCallback(async (sys, dia) => {
+    try {
+      await writeBloodPressure(sys, dia);
+      console.log('[useWatchData] BP synced from bridge:', sys + '/' + dia);
+      // Update local state immediately
+      setBpInfo({ isStale: false, lastTime: new Date().toISOString(), sys, dia });
+      // Trigger a re-poll to refresh all data
+      pollData();
+    } catch (e) {
+      console.warn('[useWatchData] syncBPFromBridge error:', e?.message || e);
+    }
+  }, []);
 
   // ── Lectura directa (polling automático) ──────────────────────
   // NO verifica permisos — simplemente intenta leer.
@@ -61,11 +95,12 @@ export function useWatchData() {
       setIsWatchAvailable(true);
       setPermissionsGranted(true);
       setError(null);
+      computeBpInfo(result);
     } catch (e) {
       console.log(`[useWatchData] Poll #${pollNum} error:`, e?.message || e);
       // Silencioso — no molestar al usuario con errores de polling
     }
-  }, []);
+  }, [computeBpInfo]);
 
   // ── Lectura manual (botón) ────────────────────────────────────
   // SÍ verifica/solicita permisos — el usuario hizo click explícito.
@@ -117,13 +152,14 @@ export function useWatchData() {
       setWatchData({ ...result, _pollId: Date.now() });
       setLastSync(new Date().toISOString());
       setError(null);
+      computeBpInfo(result);
     } catch (e) {
       console.warn('[useWatchData] Error manual:', e?.message || e);
       setError('Error al leer Health Connect.');
     } finally {
       if (isMountedRef.current) setIsLoading(false);
     }
-  }, []);
+  }, [computeBpInfo]);
 
   // ── Lifecycle: polling automático ─────────────────────────────
   useEffect(() => {
@@ -160,5 +196,7 @@ export function useWatchData() {
     isLoading,
     error,
     refreshWatchData,
+    bpInfo,
+    syncBPFromBridge,
   };
 }

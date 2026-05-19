@@ -562,6 +562,54 @@ export async function getSleepData() {
   }
 }
 
+// ── Read Sleep History (multi-day range for calendar/history) ────
+/**
+ * Read sleep session records from Health Connect over a date range.
+ * Returns an array of normalized sleep records ready for persistence.
+ *
+ * @param {number} days - Number of days to look back (default 30, max 90).
+ * @returns {Promise<Array|null>} Normalized sleep records or null on error.
+ */
+export async function getSleepHistory(days = 30) {
+  if (!HC) return null;
+  const { FEATURES } = require('../config/features');
+  if (!FEATURES.SLEEP_MODE_ENABLED) return null;
+
+  const initResult = await initHealthConnect();
+  if (!initResult.available) return null;
+
+  const { normalizeSleepRecord } = require('../utils/sleepUtils');
+
+  // Clamp range
+  const effectiveDays = Math.min(Math.max(days, 1), 90);
+  const now = new Date();
+  const start = new Date(now.getTime() - effectiveDays * 24 * 60 * 60 * 1000);
+
+  try {
+    const sleepRecords = await HC.readRecords('SleepSession', {
+      timeRangeFilter: {
+        operator: 'between',
+        startTime: start.toISOString(),
+        endTime: now.toISOString(),
+      },
+    });
+
+    const records = sleepRecords?.records;
+    if (!records || records.length === 0) {
+      console.log('[HC-Sleep] No sleep sessions found in last', effectiveDays, 'days');
+      return [];
+    }
+
+    // Normalize each record
+    const normalized = records.map(rec => normalizeSleepRecord(rec, 'health_connect'));
+    console.log('[HC-Sleep] Found', normalized.length, 'sessions in', effectiveDays, 'day window');
+    return normalized;
+  } catch (error) {
+    console.log('[HC-Sleep] Error reading sleep history:', error?.message || error);
+    return null;
+  }
+}
+
 // Registra la tarea de sincronización en background.
 // Android puede diferir el intervalo hasta ~30 min (Doze mode) — aceptable.
 TaskManager.defineTask(BACKGROUND_SYNC_TASK, async () => {

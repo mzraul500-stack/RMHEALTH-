@@ -61,9 +61,12 @@ export class LocalWellnessEngine {
 
       if (response.ok) {
         const data = await response.json();
-        if (data && data.response) {
-          // Si el backend responde exitosamente, usamos su respuesta (que ya debe incluir el disclaimer)
-          return data.response;
+        // Backend returns { reply: "..." } — accept reply, response, or message for robustness
+        const assistantText = data?.reply || data?.response || data?.message;
+        if (assistantText) {
+          // Append disclaimer if backend didn't include it
+          const disclaimer = data?.disclaimer ? `\n\n_${data.disclaimer}_` : '';
+          return assistantText + disclaimer;
         }
       }
     } catch (error) {

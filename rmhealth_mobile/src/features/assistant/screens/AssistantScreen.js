@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, View, Text, ScrollView, TextInput,
   TouchableOpacity, ActivityIndicator, Platform, KeyboardAvoidingView,
@@ -7,6 +7,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { COLORS } from '../../../theme';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { LocalWellnessEngine } from '../services/LocalWellnessEngine';
+import { useWatchData } from '../../../hooks/useWatchData';
+import { buildPreventiveSummary, formatSummaryForGemini } from '../../../services/PreventiveSummaryService';
 import { Bot, Lock, Send, AlertTriangle } from 'lucide-react-native';
 
 /**
@@ -19,6 +21,8 @@ import { Bot, Lock, Send, AlertTriangle } from 'lucide-react-native';
 export const AssistantScreen = () => {
   const { language } = useLanguage();
   const insets = useSafeAreaInsets();
+  const watchData = useWatchData() || {};
+  const [preventiveCtx, setPreventiveCtx] = useState('');
   const [messages, setMessages] = useState([
     {
       id: '0',
@@ -32,6 +36,18 @@ export const AssistantScreen = () => {
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef();
+
+  // Build preventive context on mount and when vitals change
+  useEffect(() => {
+    (async () => {
+      try {
+        const summary = await buildPreventiveSummary(watchData);
+        setPreventiveCtx(formatSummaryForGemini(summary));
+      } catch (e) {
+        console.warn('[AssistantScreen] PreventiveSummary error:', e);
+      }
+    })();
+  }, [watchData.heartRate, watchData.spo2, watchData.systolic]);
 
   const handleSend = async () => {
     const text = input.trim();
@@ -50,7 +66,11 @@ export const AssistantScreen = () => {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
-      const response = await LocalWellnessEngine.processMessage(text, language);
+      // Inject preventive context if available
+      const contextualText = preventiveCtx
+        ? `[CONTEXTO PREVENTIVO]\n${preventiveCtx}\n[PREGUNTA DEL USUARIO]\n${text}`
+        : text;
+      const response = await LocalWellnessEngine.processMessage(contextualText, language);
       const botMsg = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
