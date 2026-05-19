@@ -45,4 +45,29 @@ export const FEATURES = {
    * Canal complementario a SMS/Twilio, NO reemplazo.
    */
   FCM_NOTIFICATIONS_ENABLED: false,
+
+  /**
+   * Gemini Chatbot — RM Coach con Vertex AI.
+   * true  = intenta conectar al backend para respuestas educativas con Gemini.
+   * false = solo usa motor local offline (FAQ, resumen, adherencia).
+   * El fallback local siempre permanece activo como red de seguridad.
+   */
+  GEMINI_CHATBOT_ENABLED: true,
+
+  /**
+   * Sleep Mode — Read SleepSessionRecord via Health Connect.
+   * true  = shows sleep card on Home + full screen in More menu.
+   * false = hides all sleep functionality, no new permissions requested.
+   * Requires HEALTH_CONNECT_ENABLED = true to function.
+   */
+  SLEEP_MODE_ENABLED: true,
+
+  /**
+   * Longitudinal Trend Analysis (24h/7d/30d/90d).
+   * true  = queries GET /api/trends and displays trend insights.
+   * false = no trend queries, app behaves as before.
+   * TrendAnalysisService is contextual/preventive ONLY — never overrides
+   * MedicalEngine severity or CJM clinical thresholds.
+   */
+  TREND_ANALYSIS_ENABLED: true,
 };

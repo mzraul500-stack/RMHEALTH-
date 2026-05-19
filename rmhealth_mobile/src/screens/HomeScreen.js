@@ -14,6 +14,9 @@ import { LocalHistoryService } from '../services/LocalHistoryService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LocationService } from '../services/LocationService';
 import { CriticalAlertModal } from '../components/CriticalAlertModal';
+import { ContextualAnalysisCard } from '../components/ContextualAnalysisCard';
+import { SleepSummaryCard } from '../components/SleepSummaryCard';
+import { BPSyncBridge } from '../components/BPSyncBridge';
 import { Heart, Wind, Activity, Droplets, Thermometer, Building2, AlertTriangle, Watch } from 'lucide-react-native';
 import { useWatchData } from '../hooks/useWatchData';
 import { FEATURES } from '../config/features';
@@ -42,6 +45,14 @@ export const HomeScreen = () => {
   const handleSendVitalsRef = useRef(null);
   const lastAutoAnalysisRef = useRef(0); // timestamp del último auto-análisis
 
+  // Manual edit tracking — prevents Health Connect from overwriting user input
+  const manualEditRef = useRef({ fc: false, spo2: false, tas: false, tad: false, temp: false });
+  const onManualFC    = (v) => { manualEditRef.current.fc   = true; setHeartRate(v); };
+  const onManualSpO2  = (v) => { manualEditRef.current.spo2 = true; setSpo2(v); };
+  const onManualBpSys = (v) => { manualEditRef.current.tas  = true; setBpSys(v); };
+  const onManualBpDia = (v) => { manualEditRef.current.tad  = true; setBpDia(v); };
+  const onManualTemp  = (v) => { manualEditRef.current.temp = true; setTemp(v); };
+
   // --- API response state ---
   const [sending, setSending] = useState(false);
   const [lastResult, setLastResult] = useState(null);
@@ -59,7 +70,7 @@ export const HomeScreen = () => {
   }, []);
 
   // ── Health Connect ───────────────────────────────────────────
-  const { watchData, isWatchAvailable, permissionsGranted, refreshWatchData, isLoading: isWatchLoading, error: watchError } = useWatchData();
+  const { watchData, isWatchAvailable, permissionsGranted, refreshWatchData, isLoading: isWatchLoading, error: watchError, bpInfo, syncBPFromBridge } = useWatchData();
 
   // Auto-fill cuando llegan datos nuevos del reloj
   useEffect(() => {
@@ -72,12 +83,12 @@ export const HomeScreen = () => {
 
     const newSource = { fc: false, spo2: false, temp: false, tas: false, tad: false };
 
-    if (watchData.fc != null)          { setHeartRate(String(watchData.fc));     newSource.fc   = true; }
-    if (watchData.spo2 != null)        { setSpo2(String(watchData.spo2));        newSource.spo2 = true; }
-    if (watchData.temperatura != null) { setTemp(String(watchData.temperatura)); newSource.temp = true; }
-    // BP: fluye automáticamente
-    if (watchData.tas != null)         { setBpSys(String(watchData.tas));        newSource.tas  = true; }
-    if (watchData.tad != null)         { setBpDia(String(watchData.tad));        newSource.tad  = true; }
+    if (watchData.fc != null && !manualEditRef.current.fc)            { setHeartRate(String(watchData.fc));     newSource.fc   = true; }
+    if (watchData.spo2 != null && !manualEditRef.current.spo2)        { setSpo2(String(watchData.spo2));        newSource.spo2 = true; }
+    if (watchData.temperatura != null && !manualEditRef.current.temp) { setTemp(String(watchData.temperatura)); newSource.temp = true; }
+    // BP: fluye automáticamente (respeta edición manual)
+    if (watchData.tas != null && !manualEditRef.current.tas)          { setBpSys(String(watchData.tas));        newSource.tas  = true; }
+    if (watchData.tad != null && !manualEditRef.current.tad)          { setBpDia(String(watchData.tad));        newSource.tad  = true; }
     setWatchSource(newSource);
 
     console.log('[HomeScreen] ✅ Campos actualizados: FC=', watchData.fc,
@@ -197,6 +208,8 @@ export const HomeScreen = () => {
       } finally { 
         setSending(false); 
         setStatusMsg('');
+        // Reset manual edit tracking — next poll cycle can auto-fill again
+        manualEditRef.current = { fc: false, spo2: false, tas: false, tad: false, temp: false };
       }
     };
     // Mantiene ref sincronizada para que el auto-fill pueda invocarla
@@ -269,6 +282,14 @@ export const HomeScreen = () => {
   const mlTriage = lastResult?.ml_triage;
   const analysis = lastResult?.analysis;
   const hospital = lastResult?.hospital_routing;
+  const contextualAnalysis = lastResult?.contextual_analysis || null;
+
+  // CJM: log-only when unavailable (never show error to user)
+  React.useEffect(() => {
+    if (contextualAnalysis && contextualAnalysis.available === false) {
+      console.warn('[HomeScreen] CJM unavailable:', contextualAnalysis.error || 'unknown');
+    }
+  }, [contextualAnalysis]);
 
   // Normalize level: API returns English codes (HIGH/CRITICAL/MEDIUM/LOW)
   // but colors and display are in Spanish. Map both.
@@ -424,6 +445,23 @@ export const HomeScreen = () => {
               </View>
             )}
 
+            {/* BP Sync Bridge — visible when BP is stale (>2h) */}
+            <BPSyncBridge
+              visible={bpInfo.isStale && isWatchAvailable}
+              lastBPTime={bpInfo.lastTime}
+              lastSys={bpInfo.sys}
+              lastDia={bpInfo.dia}
+              language={language}
+              onSyncComplete={(sys, dia) => {
+                // Update form fields immediately
+                setBpSys(String(sys));
+                setBpDia(String(dia));
+                setWatchSource(prev => ({ ...prev, tas: true, tad: true }));
+                // Trigger re-poll via hook
+                syncBPFromBridge(sys, dia);
+              }}
+            />
+
             {/* Badge Health Connect — visible solo cuando hay datos del reloj */}
             {(watchSource.fc || watchSource.spo2 || watchSource.temp || watchSource.tas || watchSource.tad) && (
               <View style={s.watchBadge}>
@@ -434,16 +472,16 @@ export const HomeScreen = () => {
               </View>
             )}
             <View style={s.inputRow}>
-              <VitalInput label={tr('vital_heart_rate')} value={heartRate} onChange={setHeartRate} placeholder="72" IconComponent={Heart} iconColor="#EF4444" rangeKey="heartRate" context={contexto} language={language} accessibilityLabel={language === 'en' ? 'Heart rate in beats per minute' : 'Frecuencia cardíaca en latidos por minuto'} />
-              <VitalInput label={tr('vital_spo2')} value={spo2} onChange={setSpo2} placeholder="98" IconComponent={Wind} rangeKey="spo2" context={contexto} language={language} accessibilityLabel={language === 'en' ? 'Oxygen saturation percentage' : 'Porcentaje de saturación de oxígeno'} />
+              <VitalInput label={tr('vital_heart_rate')} value={heartRate} onChange={onManualFC} placeholder="72" IconComponent={Heart} iconColor="#EF4444" rangeKey="heartRate" context={contexto} language={language} accessibilityLabel={language === 'en' ? 'Heart rate in beats per minute' : 'Frecuencia cardíaca en latidos por minuto'} />
+              <VitalInput label={tr('vital_spo2')} value={spo2} onChange={onManualSpO2} placeholder="98" IconComponent={Wind} rangeKey="spo2" context={contexto} language={language} accessibilityLabel={language === 'en' ? 'Oxygen saturation percentage' : 'Porcentaje de saturación de oxígeno'} />
             </View>
             <View style={s.inputRow}>
-              <VitalInput label={tr('vital_systolic')} value={bpSys} onChange={setBpSys} placeholder="120" IconComponent={Activity} iconColor="#E74C3C" rangeKey="systolic" context={contexto} language={language} accessibilityLabel={language === 'en' ? 'Systolic blood pressure' : 'Presión arterial sistólica'} />
-              <VitalInput label={tr('vital_diastolic')} value={bpDia} onChange={setBpDia} placeholder="80" IconComponent={Activity} iconColor="#2E86C1" rangeKey="diastolic" context={contexto} language={language} accessibilityLabel={language === 'en' ? 'Diastolic blood pressure' : 'Presión arterial diastólica'} />
+              <VitalInput label={tr('vital_systolic')} value={bpSys} onChange={onManualBpSys} placeholder="120" IconComponent={Activity} iconColor="#E74C3C" rangeKey="systolic" context={contexto} language={language} accessibilityLabel={language === 'en' ? 'Systolic blood pressure' : 'Presión arterial sistólica'} />
+              <VitalInput label={tr('vital_diastolic')} value={bpDia} onChange={onManualBpDia} placeholder="80" IconComponent={Activity} iconColor="#2E86C1" rangeKey="diastolic" context={contexto} language={language} accessibilityLabel={language === 'en' ? 'Diastolic blood pressure' : 'Presión arterial diastólica'} />
             </View>
             <View style={s.inputRow}>
               <VitalInput label={tr('vital_glucose')} value={glucosa} onChange={setGlucosa} placeholder="90" IconComponent={Droplets} rangeKey="glucose" context={contexto} language={language} accessibilityLabel={language === 'en' ? 'Blood glucose in milligrams per deciliter' : 'Glucosa en sangre en miligramos por decilitro'} />
-              <VitalInput label={tr('vital_temperature')} value={temp} onChange={setTemp} placeholder="36.6" IconComponent={Thermometer} rangeKey="temperature" context={contexto} decimal language={language} accessibilityLabel={language === 'en' ? 'Body temperature in degrees Celsius' : 'Temperatura corporal en grados Celsius'} />
+              <VitalInput label={tr('vital_temperature')} value={temp} onChange={onManualTemp} placeholder="36.6" IconComponent={Thermometer} rangeKey="temperature" context={contexto} decimal language={language} accessibilityLabel={language === 'en' ? 'Body temperature in degrees Celsius' : 'Temperatura corporal en grados Celsius'} />
             </View>
 
             <TouchableOpacity
@@ -521,6 +559,12 @@ export const HomeScreen = () => {
                   ))}
                 </View>
               )}
+
+              {/* ── CJM CONTEXTUAL ANALYSIS ── */}
+              <ContextualAnalysisCard data={contextualAnalysis} language={language} />
+
+              {/* ── SLEEP CONTEXT SUMMARY (feature-flagged, returns null when disabled) ── */}
+              <SleepSummaryCard />
 
               {hospital && (
                 <View style={s.hospitalCard}>

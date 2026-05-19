@@ -31,12 +31,21 @@ const BACKGROUND_SYNC_TASK = 'RMHEALTH_WATCH_SYNC';
 const DATA_WINDOW_HOURS    = 72;   // FC, SpO2, Temp — ventana amplia
 const BP_WINDOW_HOURS      = 168;  // PA — 1 semana (mediciones infrecuentes)
 
-// Permisos completos — incluye BloodPressure para leer presión arterial.
+
+// Permisos completos — lectura Y escritura para sincronización bidireccional.
+// WRITE permite que RMHealth escriba datos de vuelta a Health Connect,
+// habilitando que Samsung Health y otras apps lean las mediciones.
 const HC_PERMISSIONS = [
-  { accessType: 'read', recordType: 'HeartRate'        },
-  { accessType: 'read', recordType: 'OxygenSaturation' },
-  { accessType: 'read', recordType: 'BodyTemperature'  },
-  { accessType: 'read', recordType: 'BloodPressure'    },
+  { accessType: 'read',  recordType: 'HeartRate'        },
+  { accessType: 'read',  recordType: 'OxygenSaturation' },
+  { accessType: 'read',  recordType: 'BodyTemperature'  },
+  { accessType: 'read',  recordType: 'BloodPressure'    },
+  { accessType: 'write', recordType: 'HeartRate'        },
+  { accessType: 'write', recordType: 'OxygenSaturation' },
+  { accessType: 'write', recordType: 'BodyTemperature'  },
+  { accessType: 'write', recordType: 'BloodPressure'    },
+  // Sleep context (preventive, non-diagnostic) — permission requested only when SLEEP_MODE_ENABLED=true
+  { accessType: 'read',  recordType: 'SleepSession'     },
 ];
 
 // Permiso mínimo para el botón "Leer desde Health Connect" (Fase 1).
@@ -257,23 +266,61 @@ export async function getLatestWatchData() {
     }
 
     // ── Presión Arterial ─────────────────────────────────────
+    // BP usa su propia ventana de tiempo más amplia (BP_WINDOW_HOURS)
+    // porque las mediciones de presión son menos frecuentes que FC/SpO2
     let tas = null;
     let tad = null;
-    const bpData = await HC.readRecords('BloodPressure', { timeRangeFilter: timeRange });
+    const bpStart = new Date(now.getTime() - BP_WINDOW_HOURS * 60 * 60 * 1000);
+    const bpTimeRange = {
+      operator : 'between',
+      startTime: bpStart.toISOString(),
+      endTime  : now.toISOString(),
+    };
+    console.log('[HC] BP query window:', bpStart.toISOString(), '→', now.toISOString(),
+      '(' + BP_WINDOW_HOURS + 'h)');
+
+    const bpData = await HC.readRecords('BloodPressure', { timeRangeFilter: bpTimeRange });
 
     if (bpData?.records?.length > 0) {
+      // ── DIAGNÓSTICO PROFUNDO: entender por qué solo hay 1 registro ──
+      console.log('[HC] BP: TOTAL records found =', bpData.records.length);
+      bpData.records.forEach((rec, idx) => {
+        const recTime = rec.time || rec.endTime || rec.startTime;
+        const recSys  = rec.systolic?.inMillimetersOfMercury;
+        const recDia  = rec.diastolic?.inMillimetersOfMercury;
+        const recMeta = rec.metadata;
+        console.log('[HC] BP record[' + idx + ']:',
+          'time=' + recTime,
+          'sys=' + recSys, 'dia=' + recDia,
+          'dataOrigin=' + (recMeta?.dataOrigin?.packageName || recMeta?.dataOrigin || 'unknown'),
+          'id=' + (recMeta?.id || rec.metadata?.id || 'N/A'),
+          'lastModified=' + (recMeta?.lastModifiedTime || 'N/A'));
+        // Dump completo del primer registro para entender la estructura
+        if (idx === 0) {
+          try {
+            console.log('[HC] BP record[0] FULL DUMP:', JSON.stringify(rec).substring(0, 500));
+          } catch(e) { console.log('[HC] BP dump error:', e); }
+        }
+      });
+
       const latest = lastRecord(bpData.records);
       tas = latest?.systolic?.inMillimetersOfMercury != null
         ? Math.round(latest.systolic.inMillimetersOfMercury) : null;
       tad = latest?.diastolic?.inMillimetersOfMercury != null
         ? Math.round(latest.diastolic.inMillimetersOfMercury) : null;
       const bpTime = latest.time || latest.endTime || latest.startTime;
-      console.log('[HC] BP: records=', bpData.records.length,
-        'time=', bpTime,
-        'value=', tas, '/', tad);
+
+      const bpAgeMs = bpTime ? (now.getTime() - new Date(bpTime).getTime()) : 0;
+      const bpAgeHours = (bpAgeMs / (1000 * 60 * 60)).toFixed(1);
+      console.log('[HC] BP LATEST: time=' + bpTime,
+        'value=' + tas + '/' + tad,
+        'age=' + bpAgeHours + 'h');
+
       if (bpTime && (!latestMeasurementTime || bpTime > latestMeasurementTime)) {
         latestMeasurementTime = bpTime;
       }
+    } else {
+      console.log('[HC] BP: NO records found in window');
     }
 
     // Si no hay ningún dato útil, devolver null (fallback a manual)
@@ -283,6 +330,11 @@ export async function getLatestWatchData() {
     const effectiveTimestamp = latestMeasurementTime || now.toISOString();
     console.log('[HC] 📊 Datos leídos — medición real:', latestMeasurementTime, 'vs ahora:', now.toISOString());
 
+    // bpTime: the actual measurement time of the latest BP record
+    // Used by useWatchData → BPSyncBridge to detect stale BP readings
+    const bpLatest = bpData?.records?.length > 0 ? lastRecord(bpData.records) : null;
+    const bpTime = bpLatest ? (bpLatest.time || bpLatest.endTime || bpLatest.startTime) : null;
+
     return {
       source      : 'watch',
       fc,
@@ -290,6 +342,7 @@ export async function getLatestWatchData() {
       temperatura,
       tas,
       tad,
+      bpTime,
       timestamp   : effectiveTimestamp,
       deviceName  : 'Health Connect',
     };
@@ -299,7 +352,216 @@ export async function getLatestWatchData() {
   }
 }
 
-// ── Background Sync (Tarea Expo) ────────────────────────────────
+// ── Escribir Presión Arterial a Health Connect ──────────────────
+/**
+ * Escribe un registro de presión arterial a Health Connect.
+ * Permite sincronización bidireccional:
+ *  - Samsung Health → Health Connect → RMHealth (lectura)
+ *  - RMHealth → Health Connect → Samsung Health (escritura)
+ *
+ * @param {number} systolic  - Presión sistólica (mmHg)
+ * @param {number} diastolic - Presión diastólica (mmHg)
+ * @param {Date}   [measurementTime] - Fecha/hora de la medición (default: now)
+ * @returns {Promise<boolean>} true si se escribió exitosamente
+ */
+export async function writeBloodPressure(systolic, diastolic, measurementTime = null) {
+  if (!HC) {
+    console.log('[HC] writeBloodPressure: módulo no disponible');
+    return false;
+  }
+  const initResult = await initHealthConnect();
+  if (!initResult.available) {
+    console.log('[HC] writeBloodPressure: HC no disponible:', initResult.reason);
+    return false;
+  }
+
+  try {
+    const time = measurementTime || new Date();
+    const isoTime = time instanceof Date ? time.toISOString() : time;
+
+    const records = [{
+      recordType: 'BloodPressure',
+      systolic:  { value: systolic,  unit: 'millimetersOfMercury' },
+      diastolic: { value: diastolic, unit: 'millimetersOfMercury' },
+      time: isoTime,
+      bodyPosition: 0,         // unknown
+      measurementLocation: 0,  // unknown
+    }];
+
+    const result = await HC.insertRecords(records);
+    console.log('[HC] writeBloodPressure ✅ escrito:', systolic + '/' + diastolic,
+      'time=', isoTime, 'result=', JSON.stringify(result));
+    return true;
+  } catch (err) {
+    console.log('[HC] writeBloodPressure ❌ error:', err?.message || err);
+    return false;
+  }
+}
+
+// ── DIAGNÓSTICO: Probar escritura/lectura de BP en Health Connect ──
+/**
+ * Escribe un BP de prueba, relee todos los registros y logea la diferencia.
+ * Luego elimina el registro de prueba.
+ * Esto confirma si Health Connect está funcionando correctamente para BP.
+ */
+export async function diagnoseBPSync() {
+  if (!HC) return { ok: false, reason: 'NO_MODULE' };
+  const initResult = await initHealthConnect();
+  if (!initResult.available) return { ok: false, reason: 'HC_UNAVAILABLE' };
+
+  try {
+    // 1. Leer registros ANTES de escribir
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 168 * 60 * 60 * 1000);
+    const bpBefore = await HC.readRecords('BloodPressure', {
+      timeRangeFilter: {
+        operator: 'between',
+        startTime: weekAgo.toISOString(),
+        endTime: now.toISOString(),
+      },
+    });
+    const countBefore = bpBefore?.records?.length || 0;
+    console.log('[HC-DIAG] BP records BEFORE write:', countBefore);
+
+    // 2. Escribir un registro de prueba con valores distintos (999/888 = claramente test)
+    const testTime = new Date();
+    const testRecords = [{
+      recordType: 'BloodPressure',
+      systolic:  { value: 120, unit: 'millimetersOfMercury' },
+      diastolic: { value: 80,  unit: 'millimetersOfMercury' },
+      time: testTime.toISOString(),
+      bodyPosition: 0,
+      measurementLocation: 0,
+    }];
+    const writeResult = await HC.insertRecords(testRecords);
+    console.log('[HC-DIAG] Write result:', JSON.stringify(writeResult));
+
+    // 3. Esperar un momento y releer
+    await new Promise(r => setTimeout(r, 1000));
+    const bpAfter = await HC.readRecords('BloodPressure', {
+      timeRangeFilter: {
+        operator: 'between',
+        startTime: weekAgo.toISOString(),
+        endTime: new Date().toISOString(),
+      },
+    });
+    const countAfter = bpAfter?.records?.length || 0;
+    console.log('[HC-DIAG] BP records AFTER write:', countAfter);
+    
+    // Dump todos
+    bpAfter?.records?.forEach((rec, i) => {
+      console.log('[HC-DIAG] record[' + i + ']:', 
+        'time=' + (rec.time || rec.endTime),
+        'sys=' + rec.systolic?.inMillimetersOfMercury,
+        'dia=' + rec.diastolic?.inMillimetersOfMercury,
+        'id=' + (rec.metadata?.id || 'N/A'),
+        'origin=' + (rec.metadata?.dataOrigin?.packageName || rec.metadata?.dataOrigin || 'N/A'));
+    });
+
+    // 4. Limpiar: borrar el registro de prueba
+    if (writeResult && writeResult.length > 0) {
+      try {
+        await HC.deleteRecordsByUuids('BloodPressure', writeResult, []);
+        console.log('[HC-DIAG] ✅ Test record cleaned up:', writeResult[0]);
+      } catch(e) {
+        console.log('[HC-DIAG] ⚠️ Cleanup failed (will expire naturally):', e?.message);
+      }
+    }
+
+    const success = countAfter > countBefore;
+    console.log('[HC-DIAG] Pipeline test:', success ? '✅ WORKING' : '❌ FAILED',
+      '(before=' + countBefore + ', after=' + countAfter + ')');
+    
+    return { ok: success, before: countBefore, after: countAfter, writeResult };
+  } catch (err) {
+    console.log('[HC-DIAG] ❌ error:', err?.message || err);
+    return { ok: false, reason: err?.message || String(err) };
+  }
+}
+
+// ── Read Sleep Session Data (preventive context, non-diagnostic) ─
+// Returns sleep data from the last 24h for contextual wellness monitoring.
+// Quality is a simple heuristic: >=7h=good, 5-7h=fair, <5h=poor.
+// This data NEVER modifies clinical severity or triggers emergency alerts.
+const SLEEP_WINDOW_HOURS = 24;
+
+export async function getSleepData() {
+  if (!HC) return null;
+  const initResult = await initHealthConnect();
+  if (!initResult.available) return null;
+
+  const now   = new Date();
+  const start = new Date(now.getTime() - SLEEP_WINDOW_HOURS * 60 * 60 * 1000);
+
+  try {
+    const sleepRecords = await HC.readRecords('SleepSession', {
+      timeRangeFilter: {
+        operator: 'between',
+        startTime: start.toISOString(),
+        endTime: now.toISOString(),
+      },
+    });
+
+    const records = sleepRecords?.records;
+    if (!records || records.length === 0) {
+      console.log('[HC-Sleep] No sleep sessions found in last', SLEEP_WINDOW_HOURS, 'hours');
+      return null;
+    }
+
+    // Calculate total sleep duration across all sessions
+    let totalMinutes = 0;
+    const sessions = [];
+
+    for (const rec of records) {
+      const sessionStart = new Date(rec.startTime);
+      const sessionEnd   = new Date(rec.endTime);
+      const durationMin  = (sessionEnd - sessionStart) / (1000 * 60);
+
+      // Extract sleep stages if available
+      const stages = [];
+      if (rec.stages && Array.isArray(rec.stages)) {
+        for (const stage of rec.stages) {
+          stages.push({
+            type: stage.stage || 'unknown', // 0=unknown, 1=awake, 2=sleeping, 3=out_of_bed, 4=light, 5=deep, 6=rem
+            startTime: stage.startTime,
+            endTime: stage.endTime,
+          });
+        }
+      }
+
+      totalMinutes += durationMin;
+      sessions.push({
+        start: rec.startTime,
+        end: rec.endTime,
+        durationMinutes: Math.round(durationMin),
+        stages,
+      });
+    }
+
+    // Simple quality heuristic (non-diagnostic)
+    const totalHours = totalMinutes / 60;
+    let quality = 'poor';
+    if (totalHours >= 7) quality = 'good';
+    else if (totalHours >= 5) quality = 'fair';
+
+    console.log('[HC-Sleep] Found', records.length, 'sessions, total:', Math.round(totalMinutes), 'min, quality:', quality);
+
+    return {
+      totalMinutes: Math.round(totalMinutes),
+      totalHours: Math.round(totalHours * 10) / 10,
+      quality,
+      sessions,
+      sessionCount: records.length,
+      readAt: now.toISOString(),
+      source: 'health_connect',
+      is_non_diagnostic: true,
+    };
+  } catch (error) {
+    console.log('[HC-Sleep] Error reading sleep data:', error?.message || error);
+    return null;
+  }
+}
+
 // Registra la tarea de sincronización en background.
 // Android puede diferir el intervalo hasta ~30 min (Doze mode) — aceptable.
 TaskManager.defineTask(BACKGROUND_SYNC_TASK, async () => {
