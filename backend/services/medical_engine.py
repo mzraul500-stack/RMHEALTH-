@@ -73,6 +73,10 @@ class MedicalEngine:
         2. Tendencia temporal
         3. Historial del usuario (Multiplicadores)
         4. Patrones de riesgo conocidos (Caídas/Inconsciencia)
+        
+        TODO(Future): Integrate CriticalJudgmentModule (CJM) as a complementary 
+        contextual layer. MedicalEngine should provide the baseline severity, 
+        and CJM should adjust the risk based on complex patterns and non-diagnostic rules.
         """
         try:
             score_riesgo = 0.0

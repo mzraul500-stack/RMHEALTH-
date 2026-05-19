@@ -9,9 +9,9 @@ Las alertas generadas son de carácter informativo y preventivo.
 
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger("RMHealth.PreventiveAlerts")
 
@@ -62,7 +62,15 @@ class VitalReading(BaseModel):
     diastolic: Optional[int] = None
     glucose: Optional[float] = None
     source: str = "unknown"  # "manual" | "health_connect" | "unknown"
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def _ensure_timestamp_aware(cls, v: datetime) -> datetime:
+        """Treat naive datetimes as UTC to prevent offset-naive vs offset-aware errors."""
+        if isinstance(v, datetime) and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
 
 
 class PreventiveAlert(BaseModel):
@@ -76,7 +84,7 @@ class PreventiveAlert(BaseModel):
     message: str
     recommendation: str
     requires_human_review: bool = False
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     data_window: str  # "15m" | "2h" | "24h"
     baseline_value: float = 0
     current_value: float = 0
@@ -90,7 +98,7 @@ class PreventiveAnalysisResult(BaseModel):
     alerts: List[PreventiveAlert] = []
     insufficient_data: bool = False
     metrics_analyzed: List[str] = []
-    analysis_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    analysis_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # ── Message Templates ──────────────────────────────────────────────────────
@@ -243,7 +251,7 @@ class PreventiveAlertService:
         Returns:
             PreventiveAnalysisResult with any generated alerts.
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         result = PreventiveAnalysisResult(user_id=user_id)
 
         if not readings or len(readings) < MIN_READINGS_SHORT:
@@ -602,7 +610,7 @@ class PreventiveAlertService:
         window: str,
     ) -> bool:
         """Check if a similar alert was generated within the dedup window."""
-        cutoff = datetime.utcnow() - timedelta(minutes=DEDUP_WINDOW_MINUTES)
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=DEDUP_WINDOW_MINUTES)
         for alert in recent_alerts:
             if (
                 alert.get("user_id") == user_id

@@ -276,7 +276,7 @@ def send_preventive_push(
             body="Se generó un aviso informativo. Abre RMHealth para revisar detalles.",
             data={
                 "type": "preventive_notice",
-                "alert_id": str(alert_id),
+                "alert_id": alert_id,
             },
         )
         if success:

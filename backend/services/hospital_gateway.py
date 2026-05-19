@@ -245,7 +245,7 @@ class HospitalGateway:
         Formato vital para sistemas hospitalarios legacy (antiguos).
         """
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        msg_id = str(uuid.uuid4().hex[:10])
+        msg_id = uuid.uuid4().hex[:10]
 
         # MSH - Message Header
         msh = f"MSH|^~\\&|RMHealth|VitalGuardian||Hospital|{timestamp}||ADT^A01|{msg_id}|P|2.5"
