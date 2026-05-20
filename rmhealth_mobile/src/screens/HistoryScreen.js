@@ -140,7 +140,7 @@ function MiniCalendar({ selectedDate, onSelectDate, markedDates, txt }) {
 // Bar colors based on clinical thresholds: green=normal, amber=warning, red=critical
 const BAR_THRESHOLDS = {
   hr:   { normal: [60, 100], warning: [40, 150] },
-  sys:  { normal: [90, 139], warning: [70, 180] },
+  sys:  { normal: [90, 129], warning: [70, 179] },
   spo2: { normal: [95, 100], warning: [90, 100] },
   glu:  { normal: [70, 100], warning: [54, 126] },
   temp: { normal: [36.0, 37.5], warning: [35.0, 39.0] },

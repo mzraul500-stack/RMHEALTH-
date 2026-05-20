@@ -3,8 +3,8 @@
  *
  * Changes color based on clinical ranges + measurement context:
  * 🟢 Normal → green border
- * 🟡 Warning → amber border + "Fuera de rango" label
- * 🔴 Critical → red border + "⚠️ Consulta médica" label
+ * 🟡 Warning → amber border + "Seguimiento preventivo" label
+ * 🔴 Critical → red border + "Consultar si se repite" label
  *
  * Context-dependent thresholds:
  * - "reposo": standard AHA/WHO/ADA ranges
@@ -32,13 +32,13 @@ const CLINICAL_RANGES = {
     unit: '%',
   },
   systolic: {
-    normal: [90, 139],
-    warning: [70, 180],
+    normal: [90, 129],     // AHA: <120 Normal, 120-129 Elevated, ≥130 High
+    warning: [70, 179],    // Warning zone: outside normal but not crisis
     unit: 'mmHg',
   },
   diastolic: {
-    normal: [60, 80],      // AHA: diastólica > 80 = Stage 1 — alineado con medical_engine.py
-    warning: [40, 110],
+    normal: [60, 89],      // AHA: <80 Normal, 80-89 Stage 1 (monitoring)
+    warning: [40, 119],    // Warning zone: outside normal but not crisis
     unit: 'mmHg',
   },
   glucose: {
@@ -113,10 +113,13 @@ function getStatusLabel(status, language = 'es') {
   if (status === 'idle') return null;
   const labels = {
     normal: { es: 'Normal', en: 'Normal' },
-    warning: { es: 'Fuera de rango', en: 'Out of range' },
+    warning: {
+      es: 'Seguimiento preventivo',
+      en: 'Preventive follow-up',
+    },
     critical: {
-      es: 'Critico - Consulta medica recomendada',
-      en: 'Critical - Medical consultation recommended',
+      es: 'Confirmar medición y consultar si persiste',
+      en: 'Confirm reading and consult if it persists',
     },
   };
   return labels[status]?.[language] || labels[status]?.es;
