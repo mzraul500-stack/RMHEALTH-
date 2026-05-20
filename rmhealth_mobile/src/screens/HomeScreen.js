@@ -180,19 +180,13 @@ export const HomeScreen = () => {
         setLastSync(new Date().toLocaleTimeString());
         await LocalHistoryService.saveRecord(response, payload);
 
-        // Trigger modal for preventive alerts OR if backend confirms emergency
-        // SAFETY: Only use emergency_eligible from backend, NOT raw ML level
+        // SAFETY GATE: Only trigger emergency modal when backend confirms emergency eligibility.
+        // Preventive alerts (MEDIUM/HIGH) are INFORMATIONAL — they must NOT open the
+        // emergency modal, trigger vibration, auto-escalation, or contact dispatch.
         const isEmergencyEligible = response.emergency_eligible === true;
-        let critical = null;
-        
-        if (response.preventive_alerts && response.preventive_alerts.length > 0) {
-          critical = response.preventive_alerts.find(
-            a => a.severity === 'HIGH' || a.severity === 'MEDIUM'
-          );
-        }
 
-        if (critical || isEmergencyEligible) {
-          setCriticalAlert(critical || { 
+        if (isEmergencyEligible) {
+          setCriticalAlert({ 
             severity: response.display_severity || response.analysis?.nivel_criticidad || 'HIGH', 
             message: 'Anomalía detectada en signos vitales.',
             recommendation: response.analysis?.recomendacion || 'Requiere atención médica.'

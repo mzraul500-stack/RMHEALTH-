@@ -283,3 +283,68 @@ class TestEmergencyGateIntegrity:
             and me_result.nivel_criticidad in ("CRITICAL", "HIGH")
         )
         assert emergency_eligible is False
+
+
+class TestCaseG_ReportedBug_FollowUpNotEmergency:
+    """Regression test for user-reported bug:
+    HR=74, SpO2=90, BP=111/81, Glu=90, Temp=36.6
+    UI correctly shows 'Seguimiento preventivo' but system was triggering
+    emergency protocol via CriticalAlertModal on preventive alerts."""
+
+    VITALS = dict(
+        ritmo_cardiaco=74, spo2=90,
+        presion_sistolica=111, presion_diastolica=81,
+        temperatura=36.6, glucosa=90.0,
+    )
+
+    def test_score_below_emergency(self):
+        """Score must be < 50 (UMBRAL_MEDIA) for this case."""
+        vitals = VitalsInput(usuario_id="test_bug_report", **self.VITALS)
+        result = MedicalEngine.detect_patterns(vitals)
+        assert result.score_riesgo < MedicalEngine.UMBRAL_MEDIA, (
+            f"Score {result.score_riesgo} should be < {MedicalEngine.UMBRAL_MEDIA}"
+        )
+
+    def test_not_emergency(self):
+        """emergencia_detectada must be False."""
+        vitals = VitalsInput(usuario_id="test_bug_report2", **self.VITALS)
+        result = MedicalEngine.detect_patterns(vitals)
+        assert result.emergencia_detectada is False
+
+    def test_not_critical_or_high(self):
+        """nivel_criticidad must NOT be CRITICAL or HIGH."""
+        vitals = VitalsInput(usuario_id="test_bug_report3", **self.VITALS)
+        result = MedicalEngine.detect_patterns(vitals)
+        assert result.nivel_criticidad not in ("CRITICAL", "HIGH"), (
+            f"nivel_criticidad={result.nivel_criticidad} should not be CRITICAL/HIGH"
+        )
+
+    def test_emergency_gate_blocks(self):
+        """Full emergency gate simulation: must return False."""
+        vitals = VitalsInput(usuario_id="test_bug_report4", **self.VITALS)
+        result = MedicalEngine.detect_patterns(vitals)
+        emergency_eligible = (
+            result.emergencia_detectada
+            and result.score_riesgo >= MedicalEngine.UMBRAL_MEDIA
+            and result.nivel_criticidad in ("CRITICAL", "HIGH")
+        )
+        assert emergency_eligible is False, (
+            f"SAFETY VIOLATION: emergency_eligible=True for follow-up readings "
+            f"(score={result.score_riesgo}, level={result.nivel_criticidad})"
+        )
+
+    def test_ml_alto_irrelevant(self):
+        """ML may say ALTO for SpO2=90 but that must NOT trigger emergency."""
+        ml_result = classify_triage(
+            heart_rate=74, spo2=90, bp_sys=111, bp_dia=81,
+            glucose=90.0, temperature=36.6, age=50,
+        )
+        vitals = VitalsInput(usuario_id="test_bug_report5", **self.VITALS)
+        me_result = MedicalEngine.detect_patterns(vitals)
+
+        # ML says ALTO — expected and acceptable
+        assert ml_result["level"] == "ALTO"
+        # But MedicalEngine blocks emergency
+        assert me_result.emergencia_detectada is False
+        assert me_result.score_riesgo < MedicalEngine.UMBRAL_MEDIA
+
