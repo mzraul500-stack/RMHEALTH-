@@ -37,7 +37,7 @@ const CLINICAL_RANGES = {
     unit: 'mmHg',
   },
   diastolic: {
-    normal: [60, 89],      // AHA: <80 Normal, 80-89 Stage 1 (monitoring)
+    normal: [60, 79],      // AHA: <80 Normal, 80-89 → amber "Seguimiento preventivo"
     warning: [40, 119],    // Warning zone: outside normal but not crisis
     unit: 'mmHg',
   },
