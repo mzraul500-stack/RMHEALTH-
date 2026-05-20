@@ -514,43 +514,6 @@ export const HomeScreen = () => {
             </TouchableOpacity>
           </View>
 
-          {/* ── QUICK ACCESS ── */}
-          <View style={s.quickAccessSection}>
-            <Text style={s.quickAccessTitle}>
-              {language === 'en' ? 'Quick Access' : 'Accesos Rápidos'}
-            </Text>
-            <View style={s.quickAccessGrid}>
-              {[
-                { icon: FileText, label: language === 'en' ? 'My Record' : 'Mi Expediente', sub: language === 'en' ? 'History & medical report' : 'Historial y reporte médico', screen: 'QA_MiExpediente', color: '#1B7A6E' },
-                { icon: ShieldAlert, label: language === 'en' ? 'Alerts' : 'Alertas', sub: language === 'en' ? 'Alerts & calendar' : 'Alertas y calendario', screen: 'QA_PreventiveAlerts', color: '#F59E0B' },
-                { icon: Stethoscope, label: language === 'en' ? 'My Doctors' : 'Mis Médicos', sub: language === 'en' ? 'Medical contacts' : 'Contactos médicos', screen: 'QA_MyDoctors', color: '#8B5CF6' },
-                { icon: CreditCard, label: language === 'en' ? 'Emergency Card' : 'Tarjeta Emergencia', sub: language === 'en' ? 'Critical info' : 'Información crítica', screen: 'QA_EmergencyCard', color: '#EF4444' },
-                { icon: Moon, label: language === 'en' ? 'Rest' : 'Descanso', sub: language === 'en' ? 'Sleep & history' : 'Sueño e historial', screen: 'QA_SleepMode', color: '#818CF8' },
-                { icon: Pill, label: language === 'en' ? 'Medications' : 'Medicamentos', sub: language === 'en' ? 'Doses & adherence' : 'Tomas y adherencia', tab: 'Meds', color: '#10B981' },
-              ].map((item, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={s.quickCard}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    if (item.tab) {
-                      navigation.navigate(item.tab);
-                    } else {
-                      navigation.navigate(item.screen);
-                    }
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={item.label}
-                >
-                  <View style={[s.quickIconWrap, { backgroundColor: item.color + '15' }]}>
-                    <item.icon size={18} color={item.color} strokeWidth={2.5} />
-                  </View>
-                  <Text style={s.quickLabel} numberOfLines={1}>{item.label}</Text>
-                  <Text style={s.quickSub} numberOfLines={1}>{item.sub}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
 
           {lastResult && (
             <View style={s.resultCard}>
@@ -698,6 +661,44 @@ export const HomeScreen = () => {
               </View>
             </View>
           )}
+
+          {/* ── QUICK ACCESS ── */}
+          <View style={s.quickAccessSection}>
+            <Text style={s.quickAccessTitle}>
+              {language === 'en' ? 'Quick Access' : 'Accesos Rápidos'}
+            </Text>
+            <View style={s.quickAccessGrid}>
+              {[
+                { icon: FileText, label: language === 'en' ? 'My Record' : 'Mi Expediente', sub: language === 'en' ? 'History & medical report' : 'Historial y reporte médico', screen: 'QA_MiExpediente', color: '#1B7A6E' },
+                { icon: ShieldAlert, label: language === 'en' ? 'Alerts' : 'Alertas', sub: language === 'en' ? 'Alerts & calendar' : 'Alertas y calendario', screen: 'QA_PreventiveAlerts', color: '#F59E0B' },
+                { icon: Stethoscope, label: language === 'en' ? 'My Doctors' : 'Mis Médicos', sub: language === 'en' ? 'Medical contacts' : 'Contactos médicos', screen: 'QA_MyDoctors', color: '#8B5CF6' },
+                { icon: CreditCard, label: language === 'en' ? 'Emergency Card' : 'Tarjeta Emergencia', sub: language === 'en' ? 'Critical info' : 'Información crítica', screen: 'QA_EmergencyCard', color: '#EF4444' },
+                { icon: Moon, label: language === 'en' ? 'Rest' : 'Descanso', sub: language === 'en' ? 'Sleep & history' : 'Sueño e historial', screen: 'QA_SleepMode', color: '#818CF8' },
+                { icon: Pill, label: language === 'en' ? 'Medications' : 'Medicamentos', sub: language === 'en' ? 'Doses & adherence' : 'Tomas y adherencia', tab: 'Meds', color: '#10B981' },
+              ].map((item, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={s.quickCard}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (item.tab) {
+                      navigation.navigate(item.tab);
+                    } else {
+                      navigation.navigate(item.screen);
+                    }
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.label}
+                >
+                  <View style={[s.quickIconWrap, { backgroundColor: item.color + '15' }]}>
+                    <item.icon size={18} color={item.color} strokeWidth={2.5} />
+                  </View>
+                  <Text style={s.quickLabel} numberOfLines={1}>{item.label}</Text>
+                  <Text style={s.quickSub} numberOfLines={1}>{item.sub}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
 
           {lastSync && (
             <Text style={s.syncText}>
