@@ -6,6 +6,12 @@ const MAX_RECORDS = 100;
 /**
  * LocalHistoryService — Stores vital signs results locally.
  * This ensures history is available even when the backend DB is offline.
+ *
+ * SECURITY NOTE (Audit V-08): Health data is stored in AsyncStorage (unencrypted).
+ * SecureStore has a ~2KB per-item limit, making it impractical for 100 records.
+ * TODO: Migrate to encrypted storage (e.g. react-native-encrypted-storage) or
+ * backend-only persistence before external pilot expansion.
+ * Current mitigation: Data is local-only, max 100 records, device-scoped.
  */
 export const LocalHistoryService = {
   /**

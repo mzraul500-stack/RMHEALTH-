@@ -282,26 +282,29 @@ export async function getLatestWatchData() {
     const bpData = await HC.readRecords('BloodPressure', { timeRangeFilter: bpTimeRange });
 
     if (bpData?.records?.length > 0) {
-      // ── DIAGNÓSTICO PROFUNDO: entender por qué solo hay 1 registro ──
-      console.log('[HC] BP: TOTAL records found =', bpData.records.length);
-      bpData.records.forEach((rec, idx) => {
-        const recTime = rec.time || rec.endTime || rec.startTime;
-        const recSys  = rec.systolic?.inMillimetersOfMercury;
-        const recDia  = rec.diastolic?.inMillimetersOfMercury;
-        const recMeta = rec.metadata;
-        console.log('[HC] BP record[' + idx + ']:',
-          'time=' + recTime,
-          'sys=' + recSys, 'dia=' + recDia,
-          'dataOrigin=' + (recMeta?.dataOrigin?.packageName || recMeta?.dataOrigin || 'unknown'),
-          'id=' + (recMeta?.id || rec.metadata?.id || 'N/A'),
-          'lastModified=' + (recMeta?.lastModifiedTime || 'N/A'));
-        // Dump completo del primer registro para entender la estructura
-        if (idx === 0) {
-          try {
-            console.log('[HC] BP record[0] FULL DUMP:', JSON.stringify(rec).substring(0, 500));
-          } catch(e) { console.log('[HC] BP dump error:', e); }
-        }
-      });
+      // ── BP record analysis (dev-only detailed logging) ──
+      if (__DEV__) {
+        console.log('[HC] BP: TOTAL records found =', bpData.records.length);
+        bpData.records.forEach((rec, idx) => {
+          const recTime = rec.time || rec.endTime || rec.startTime;
+          const recSys  = rec.systolic?.inMillimetersOfMercury;
+          const recDia  = rec.diastolic?.inMillimetersOfMercury;
+          const recMeta = rec.metadata;
+          console.log('[HC] BP record[' + idx + ']:',
+            'time=' + recTime,
+            'sys=' + recSys, 'dia=' + recDia,
+            'dataOrigin=' + (recMeta?.dataOrigin?.packageName || recMeta?.dataOrigin || 'unknown'),
+            'id=' + (recMeta?.id || rec.metadata?.id || 'N/A'),
+            'lastModified=' + (recMeta?.lastModifiedTime || 'N/A'));
+          if (idx === 0) {
+            try {
+              console.log('[HC] BP record[0] FULL DUMP:', JSON.stringify(rec).substring(0, 500));
+            } catch(e) { console.log('[HC] BP dump error:', e); }
+          }
+        });
+      } else {
+        console.log('[HC] BP: records found =', bpData.records.length);
+      }
 
       const latest = lastRecord(bpData.records);
       tas = latest?.systolic?.inMillimetersOfMercury != null
@@ -312,9 +315,11 @@ export async function getLatestWatchData() {
 
       const bpAgeMs = bpTime ? (now.getTime() - new Date(bpTime).getTime()) : 0;
       const bpAgeHours = (bpAgeMs / (1000 * 60 * 60)).toFixed(1);
-      console.log('[HC] BP LATEST: time=' + bpTime,
-        'value=' + tas + '/' + tad,
-        'age=' + bpAgeHours + 'h');
+      if (__DEV__) {
+        console.log('[HC] BP LATEST: time=' + bpTime,
+          'value=' + tas + '/' + tad,
+          'age=' + bpAgeHours + 'h');
+      }
 
       if (bpTime && (!latestMeasurementTime || bpTime > latestMeasurementTime)) {
         latestMeasurementTime = bpTime;
@@ -328,7 +333,7 @@ export async function getLatestWatchData() {
 
     // Use actual measurement time, fall back to current time
     const effectiveTimestamp = latestMeasurementTime || now.toISOString();
-    console.log('[HC] 📊 Datos leídos — medición real:', latestMeasurementTime, 'vs ahora:', now.toISOString());
+    if (__DEV__) console.log('[HC] 📊 Datos leídos — medición real:', latestMeasurementTime, 'vs ahora:', now.toISOString());
 
     // bpTime: the actual measurement time of the latest BP record
     // Used by useWatchData → BPSyncBridge to detect stale BP readings
@@ -622,7 +627,7 @@ TaskManager.defineTask(BACKGROUND_SYNC_TASK, async () => {
       if (token) {
         // Enviar a RMHealth backend
         await apiService.sendVitals(watchData, token);
-        console.log('[HC] Background sync exitoso:', watchData);
+        if (__DEV__) console.log('[HC] Background sync exitoso: records sent');
       } else {
         console.log('[HC] Background sync abortado: Usuario no autenticado');
       }
