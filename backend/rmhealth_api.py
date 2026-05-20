@@ -691,7 +691,16 @@ async def receive_vital_signs(data: VitalSigns, user=Depends(verify_token)):
     ML classification runs FIRST (no DB required).
     DB persistence is attempted but non-blocking — if DB is unavailable,
     the API still returns the ML + heuristic results.
+
+    V-07 FIX: usuario_id is enforced from JWT, not from client body.
     """
+    # V-07 FIX: Enforce server-side user_id from JWT
+    token_user_id = user.get("sub") or user.get("user_id")
+    if token_user_id and token_user_id != "api_client":
+        if data.usuario_id and data.usuario_id != token_user_id:
+            logger.warning(f"[SECURITY] usuario_id mismatch: body vs JWT. Overriding with authenticated user_id.")
+        data.usuario_id = token_user_id
+
     # Default patient context (used when DB is unavailable)
     _demo = random.choice(DEMO_PATIENTS)
     patient_age = _demo["edad"]
@@ -1395,16 +1404,33 @@ async def health_check():
 
 @app.get("/api/emergencies/latest")
 async def get_latest_emergency(user=Depends(verify_token)):
-    """Fetch the latest emergency alert for the hospital dashboard demo"""
+    """Fetch the latest emergency alert for the authenticated user.
+    MEDICO role can see cross-user data (temporary pilot exception).
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # Get the latest emergency based on timestamp
-        cursor.execute(
-            """SELECT id, usuario_id, tipo_emergencia, descripcion, ubicacion_lat, ubicacion_lon, timestamp, estado 
-               FROM emergency_alerts 
-               ORDER BY timestamp DESC LIMIT 1"""
-        )
+        token_user_id = user.get("sub") or user.get("user_id")
+        token_role = (user.get("role") or "").upper()
+
+        if token_role == "MEDICO":
+            # TODO: MEDICO cross-user access must be restricted by hospital/institution
+            # assignment before external pilot. Currently allows all MEDICO users.
+            logger.info(f"[AUDIT] MEDICO {token_user_id} accessing cross-user emergencies/latest")
+            cursor.execute(
+                """SELECT id, usuario_id, tipo_emergencia, descripcion, ubicacion_lat, ubicacion_lon, timestamp, estado 
+                   FROM emergency_alerts 
+                   ORDER BY timestamp DESC LIMIT 1"""
+            )
+        else:
+            # V-03 FIX: PACIENTE sees only own emergencies
+            cursor.execute(
+                """SELECT id, usuario_id, tipo_emergencia, descripcion, ubicacion_lat, ubicacion_lon, timestamp, estado 
+                   FROM emergency_alerts 
+                   WHERE usuario_id = %s
+                   ORDER BY timestamp DESC LIMIT 1""",
+                (token_user_id,)
+            )
         alert = cursor.fetchone()
         
         if alert:
@@ -1429,15 +1455,33 @@ async def get_latest_emergency(user=Depends(verify_token)):
 
 @app.get("/api/emergencies/history")
 async def get_emergencies_history(user=Depends(verify_token)):
-    """Fetch all emergency alerts for the historical B2B dashboard"""
+    """Fetch emergency alert history for the authenticated user.
+    MEDICO role can see cross-user data (temporary pilot exception).
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute(
-            """SELECT id, usuario_id, tipo_emergencia, descripcion, ubicacion_lat, ubicacion_lon, timestamp, estado 
-               FROM emergency_alerts 
-               ORDER BY timestamp DESC LIMIT 50"""
-        )
+        token_user_id = user.get("sub") or user.get("user_id")
+        token_role = (user.get("role") or "").upper()
+
+        if token_role == "MEDICO":
+            # TODO: MEDICO cross-user access must be restricted by hospital/institution
+            # assignment before external pilot. Currently allows all MEDICO users.
+            logger.info(f"[AUDIT] MEDICO {token_user_id} accessing cross-user emergencies/history")
+            cursor.execute(
+                """SELECT id, usuario_id, tipo_emergencia, descripcion, ubicacion_lat, ubicacion_lon, timestamp, estado 
+                   FROM emergency_alerts 
+                   ORDER BY timestamp DESC LIMIT 50"""
+            )
+        else:
+            # V-04 FIX: PACIENTE sees only own emergency history
+            cursor.execute(
+                """SELECT id, usuario_id, tipo_emergencia, descripcion, ubicacion_lat, ubicacion_lon, timestamp, estado 
+                   FROM emergency_alerts 
+                   WHERE usuario_id = %s
+                   ORDER BY timestamp DESC LIMIT 50""",
+                (token_user_id,)
+            )
         alerts = cursor.fetchall()
         
         history = []
@@ -1467,9 +1511,24 @@ async def get_emergencies_history(user=Depends(verify_token)):
 
 @app.get("/api/users/{user_id}/preventive-alerts")
 async def get_user_preventive_alerts(user_id: str, user=Depends(verify_token)):
-    """Retrieve preventive alerts for a specific user."""
+    """Retrieve preventive alerts for a specific user.
+    V-05 FIX: Enforces ownership — PACIENTE can only read own alerts.
+    MEDICO role can read cross-user (temporary pilot exception).
+    """
     conn = None
     try:
+        token_user_id = user.get("sub") or user.get("user_id")
+        token_role = (user.get("role") or "").upper()
+
+        # V-05 FIX: Ownership check
+        if token_user_id != user_id and token_role != "MEDICO":
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        if token_role == "MEDICO" and token_user_id != user_id:
+            # TODO: MEDICO cross-user access must be restricted by hospital/institution
+            # assignment before external pilot.
+            logger.info(f"[AUDIT] MEDICO {token_user_id} reading preventive-alerts for user {user_id}")
+
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -1503,6 +1562,8 @@ async def get_user_preventive_alerts(user_id: str, user=Depends(verify_token)):
                 "acknowledged_at": row["acknowledged_at"].isoformat() if row["acknowledged_at"] else None,
             })
         return {"status": "success", "count": len(alerts), "alerts": alerts}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching preventive alerts: {e}")
         return {"status": "error", "message": "Could not retrieve preventive alerts", "alerts": []}
@@ -1516,17 +1577,22 @@ async def get_user_preventive_alerts(user_id: str, user=Depends(verify_token)):
 
 @app.post("/api/preventive-alerts/{alert_id}/acknowledge")
 async def acknowledge_preventive_alert(alert_id: str, user=Depends(verify_token)):
-    """Mark a preventive alert as acknowledged/seen by the user."""
+    """Mark a preventive alert as acknowledged/seen by the user.
+    V-05 FIX: Only the alert owner can acknowledge.
+    """
     conn = None
     try:
+        token_user_id = user.get("sub") or user.get("user_id")
+
         conn = get_db_connection()
         cursor = conn.cursor()
+        # V-05 FIX: Include user_id in WHERE to enforce ownership
         cursor.execute(
             """UPDATE preventive_alerts
                SET acknowledged_at = CURRENT_TIMESTAMP
-               WHERE id = %s::uuid AND acknowledged_at IS NULL
+               WHERE id = %s::uuid AND user_id = %s AND acknowledged_at IS NULL
                RETURNING id""",
-            (alert_id,)
+            (alert_id, token_user_id)
         )
         updated = cursor.fetchone()
         conn.commit()
@@ -1568,17 +1634,20 @@ async def respond_to_preventive_alert(alert_id: str, payload: AlertResponsePaylo
 
     conn = None
     try:
+        token_user_id = user.get("sub") or user.get("user_id")
+
         conn = get_db_connection()
         cursor = conn.cursor()
 
+        # V-05 FIX: Include user_id in WHERE to enforce ownership
         cursor.execute(
             """UPDATE preventive_alerts
                SET acknowledged_at = CURRENT_TIMESTAMP,
                    response_type = %s,
                    response_reason = %s
-               WHERE id = %s::uuid
+               WHERE id = %s::uuid AND user_id = %s
                RETURNING id, user_id, severity, metric, title""",
-            (payload.response_type, payload.reason, alert_id)
+            (payload.response_type, payload.reason, alert_id, token_user_id)
         )
         updated = cursor.fetchone()
         conn.commit()
@@ -1886,21 +1955,10 @@ async def refresh_token(req: RefreshTokenRequest):
     except HTTPException:
         raise
     except Exception as e:
-        # ── LOCAL/ML-ONLY FALLBACK: issue temp JWT when DB unavailable ──
-        logger.warning(f"[AUTH] Refresh DB unavailable, issuing temp token for local testing: {e}")
-        try:
-            temp_access = create_access_token(req.user_id, f"{req.user_id}@local.test", "patient")
-            temp_raw_refresh, _ = create_refresh_token(req.user_id)
-            return {
-                "status": "success",
-                "access_token": temp_access,
-                "refresh_token": temp_raw_refresh,
-                "token_type": "bearer",
-                "expires_in": 86400,
-            }
-        except Exception as fallback_err:
-            logger.error(f"[AUTH] Fallback token generation also failed: {fallback_err}")
-            raise HTTPException(status_code=500, detail="Error al renovar sesión")
+        # V-01 FIX: Never issue tokens without DB validation.
+        # If DB is unavailable, return 503 — client must retry.
+        logger.error(f"[AUTH] Token refresh failed — DB unavailable: {e}")
+        raise HTTPException(status_code=503, detail="Servicio no disponible. Intenta de nuevo.")
     finally:
         if conn:
             try:
