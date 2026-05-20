@@ -962,8 +962,11 @@ async def receive_vital_signs(data: VitalSigns, request: Request, user=Depends(v
         _emergency_trigger_source = "MedicalEngine" if _emergency_eligible else "none"
 
         # If CJM is available and recommends escalation, note it but don't override
-        if cjm_result_dict and cjm_result_dict.get("available") is not False:
-            _cjm_action = cjm_result_dict.get("escalation_action", "NONE")
+        # NOTE: cjm_result_dict is evaluated later in the pipeline. At this point
+        # it may not exist yet. We safely default to None.
+        _cjm_dict = locals().get('cjm_result_dict', None)
+        if _cjm_dict and _cjm_dict.get("available") is not False:
+            _cjm_action = _cjm_dict.get("escalation_action", "NONE")
             if _cjm_action in ("AUTO_ESCALATION_CANDIDATE", "ESCALATE_IF_CONFIRMED"):
                 if not _emergency_eligible:
                     logger.info(
