@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { COLORS, SPACING } from '../theme';
 import { apiService } from '../api/client';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../contexts/AuthContext';
 import {
   BarChart3, AlertTriangle, Siren, Heart, Activity, Droplets, Wind,
   Info, CheckCircle, Lightbulb, CalendarDays,
@@ -47,52 +47,57 @@ const METRIC_LABELS = {
  * Non-diagnostic, informational only.
  */
 export const PreventiveAlertsScreen = ({ navigation }) => {
+  const { accessToken, user } = useAuth();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState(null);
-  const [userId, setUserId] = useState(null);
+  const [fetchError, setFetchError] = useState(null);
   const [alertTab, setAlertTab] = useState('list');
   const [selectedCalDate, setSelectedCalDate] = useState(null);
 
-  useEffect(() => {
-    const loadUserId = async () => {
-      try {
-        const raw = await AsyncStorage.getItem('@rmhealth/patient_profile');
-        if (raw) {
-          const profile = JSON.parse(raw);
-          const id = profile?.name?.toLowerCase().replace(/\s+/g, '_') || 'usuario_001';
-          setUserId(id);
-        } else {
-          setUserId('usuario_001');
-        }
-      } catch (e) {
-        setUserId('usuario_001');
-      }
-    };
-    loadUserId();
-  }, []);
+  // Use the authenticated UUID directly — never derive from profile name
+  const userId = user?.id || null;
 
   const fetchAlerts = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      setFetchError('auth');
+      setLoading(false);
+      return;
+    }
+    setFetchError(null);
     try {
-      const result = await apiService.getPreventiveAlerts(userId);
-      if (result?.alerts) {
+      const result = await apiService.getPreventiveAlerts(userId, accessToken);
+      if (result?.status === 'error') {
+        // apiService catches exceptions and returns { status: 'error' }
+        console.warn('[PreventiveAlerts] API returned error status');
+        setFetchError('api');
+      } else if (result?.alerts) {
         setAlerts(result.alerts);
       }
     } catch (e) {
-      console.warn('[PreventiveAlerts] Fetch failed:', e);
+      console.warn('[PreventiveAlerts] Fetch failed:', e?.message || e);
+      const msg = String(e?.message || '');
+      if (msg.includes('403') || msg.includes('401')) {
+        setFetchError('forbidden');
+      } else {
+        setFetchError('network');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userId]);
+  }, [userId, accessToken]);
 
   useEffect(() => {
     if (userId) {
       fetchAlerts();
+    } else if (user !== undefined && user !== null && !user?.id) {
+      // user exists but has no id
+      setFetchError('auth');
+      setLoading(false);
     }
-  }, [userId, fetchAlerts]);
+  }, [userId, fetchAlerts, user]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -272,7 +277,25 @@ export const PreventiveAlertsScreen = ({ navigation }) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
         }
       >
-        {alerts.length === 0 ? (
+        {fetchError ? (
+          <View style={styles.emptyContainer}>
+            <AlertTriangle size={48} color="#F59E0B" strokeWidth={1.5} style={{ marginBottom: SPACING.md }} />
+            <Text style={styles.emptyTitle}>
+              {fetchError === 'auth'
+                ? 'Sesión no disponible'
+                : fetchError === 'forbidden'
+                  ? 'No se pudieron cargar las alertas'
+                  : 'Error de conexión'}
+            </Text>
+            <Text style={styles.emptyMessage}>
+              {fetchError === 'auth'
+                ? 'Vuelve a iniciar sesión para ver tus alertas preventivas.'
+                : fetchError === 'forbidden'
+                  ? 'No se pudo verificar tu identidad. Cierra y abre la app, o vuelve a iniciar sesión si el problema persiste.'
+                  : 'No se pudo contactar al servidor. Verifica tu conexión e intenta nuevamente.'}
+            </Text>
+          </View>
+        ) : alerts.length === 0 ? (
           <View style={styles.emptyContainer}>
             <CheckCircle size={48} color="#1B7A6E" strokeWidth={1.5} style={{ marginBottom: SPACING.md }} />
             <Text style={styles.emptyTitle}>Sin alertas preventivas</Text>
