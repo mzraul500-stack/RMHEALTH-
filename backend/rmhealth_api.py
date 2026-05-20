@@ -13,6 +13,8 @@ import io
 import json
 import logging
 import os
+import time
+from collections import defaultdict
 import random
 import string
 from decimal import Decimal
@@ -99,18 +101,39 @@ def classify_emergency_label(analysis) -> str:
 security = HTTPBearer()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+# ── Environment detection ──
+_environment = os.environ.get("ENVIRONMENT", "development").lower()
+_is_production = _environment == "production"
+
+# ── Swagger/docs: disabled in production ──
 app = FastAPI(
     title="RMHEALTH Medical API - Zero Trust Security",
     description="Medical system with geolocation, emergency alerts and Zero Trust security",
     version="2.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if _is_production else "/docs",
+    redoc_url=None if _is_production else "/redoc",
+    openapi_url=None if _is_production else "/openapi.json",
 )
+if _is_production:
+    logger.info("[SECURITY] Swagger/Redoc/OpenAPI disabled in production.")
 
-# CORS middleware — origins loaded from environment
-_cors_origins = os.environ.get("CORS_ORIGINS", "*").split(",")
-if _cors_origins == ["*"]:
-    logger.warning("CORS_ORIGINS not set — allowing all origins. Set CORS_ORIGINS in .env for production.")
+# ── CORS middleware — hardened for production ──
+_cors_raw = os.environ.get("CORS_ORIGINS", "")
+if not _cors_raw or _cors_raw.strip() == "*":
+    if _is_production:
+        # In production, reject wildcard — use safe defaults
+        _cors_origins = [
+            "https://www.rmhealth.ai",
+            "https://rmhealth.ai",
+        ]
+        logger.warning("[SECURITY] CORS_ORIGINS was wildcard/empty in production. "
+                       "Falling back to safe defaults: %s", _cors_origins)
+    else:
+        _cors_origins = ["*"]
+        logger.warning("CORS_ORIGINS not set — allowing all origins (development mode).")
+else:
+    _cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+    logger.info(f"[CORS] Origins configured: {_cors_origins}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -119,6 +142,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Rate Limiter (in-memory, compatible with Cloud Run single instance) ──
+class RateLimiter:
+    """Simple in-memory rate limiter by IP. Resets per window.
+    Compatible with Cloud Run (single instance, no shared state).
+    """
+    def __init__(self, max_requests: int = 10, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._requests = defaultdict(list)
+
+    def is_allowed(self, key: str) -> bool:
+        now = time.time()
+        # Clean old entries
+        self._requests[key] = [t for t in self._requests[key] if now - t < self.window_seconds]
+        if len(self._requests[key]) >= self.max_requests:
+            return False
+        self._requests[key].append(now)
+        return True
+
+# Auth endpoints: 10 requests per minute per IP
+_auth_limiter = RateLimiter(max_requests=10, window_seconds=60)
+# Vital-signs: 30 requests per minute per IP
+_vitals_limiter = RateLimiter(max_requests=30, window_seconds=60)
 
 # --- Validation Error Handler (logs exact field that failed) ---
 from fastapi.exceptions import RequestValidationError
@@ -685,7 +733,7 @@ async def find_nearest_hospital(lat: float, lon: float, radius_km: int = 10):
 
 # API Endpoints
 @app.post("/api/vital-signs")
-async def receive_vital_signs(data: VitalSigns, user=Depends(verify_token)):
+async def receive_vital_signs(data: VitalSigns, request: Request, user=Depends(verify_token)):
     """Receive and process vital signs data using the RMHealth Medical Engine.
     
     ML classification runs FIRST (no DB required).
@@ -694,6 +742,10 @@ async def receive_vital_signs(data: VitalSigns, user=Depends(verify_token)):
 
     V-07 FIX: usuario_id is enforced from JWT, not from client body.
     """
+    # Rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+    if not _vitals_limiter.is_allowed(client_ip):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
     # V-07 FIX: Enforce server-side user_id from JWT
     token_user_id = user.get("sub") or user.get("user_id")
     if token_user_id and token_user_id != "api_client":
@@ -1367,39 +1419,27 @@ async def get_longitudinal_trends(usuario_id: str, user=Depends(verify_token)):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint + auto-migration for new tables."""
+    """Health check endpoint — read-only. No DDL/migrations.
+    DDL was moved out of /health to prevent schema changes on every probe.
+    """
+    db_status = "unknown"
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Phase 7: Auto-create record_corrections table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS record_corrections (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id UUID NOT NULL,
-                record_type TEXT NOT NULL,
-                record_id TEXT NOT NULL,
-                correction_note TEXT NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_corrections_record
-                ON record_corrections(record_type, record_id)
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_corrections_user
-                ON record_corrections(user_id, created_at DESC)
-        """)
-        # NOM-004 retention tracking
-        cursor.execute("""
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS
-                retention_until TIMESTAMP WITH TIME ZONE
-        """)
-        conn.commit()
+        cursor.execute("SELECT 1")
+        cursor.close()
         conn.close()
+        db_status = "connected"
     except Exception as e:
-        logger.warning(f"[HEALTH] Migration check: {e}")
-    return {"status": "healthy", "service": "RMHEALTH API", "version": "3.0.0"}
+        db_status = "unavailable"
+        logger.warning(f"[HEALTH] DB connectivity check failed: {e}")
+    return {
+        "status": "healthy",
+        "service": "RMHEALTH API",
+        "version": "3.0.0",
+        "db": db_status,
+        "environment": _environment,
+    }
 
 
 @app.get("/api/emergencies/latest")
@@ -1751,8 +1791,13 @@ class ForgotPasswordRequest(BaseModel):
 
 
 @app.post("/api/auth/register")
-async def register(req: RegisterRequest):
+async def register(req: RegisterRequest, request: Request):
     """Register a new user account."""
+    # Rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+    if not _auth_limiter.is_allowed(f"register:{client_ip}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
+
     # Validate passwords match
     if req.password != req.confirm_password:
         raise HTTPException(status_code=400, detail="Las contraseñas no coinciden")
@@ -1806,8 +1851,12 @@ async def register(req: RegisterRequest):
 
 
 @app.post("/api/auth/login")
-async def login(req: LoginRequest):
-    """Authenticate user and send 2FA code."""
+async def login(req: LoginRequest, request: Request):
+    """Login with email and password."""
+    # Rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+    if not _auth_limiter.is_allowed(f"login:{client_ip}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
     conn = None
     try:
         conn = get_db_connection()
@@ -1865,8 +1914,12 @@ async def login(req: LoginRequest):
 
 
 @app.post("/api/auth/verify-2fa")
-async def verify_2fa(req: Verify2FARequest):
-    """Verify 2FA code and issue JWT + refresh token."""
+async def verify_2fa(req: Verify2FARequest, request: Request):
+    """Verify 2FA code."""
+    # Rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+    if not _auth_limiter.is_allowed(f"2fa:{client_ip}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
     conn = None
     try:
         conn = get_db_connection()
@@ -1917,8 +1970,12 @@ async def verify_2fa(req: Verify2FARequest):
 
 
 @app.post("/api/auth/refresh")
-async def refresh_token(req: RefreshTokenRequest):
+async def refresh_token(req: RefreshTokenRequest, request: Request):
     """Refresh an expired access token using a valid refresh token."""
+    # Rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+    if not _auth_limiter.is_allowed(f"refresh:{client_ip}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
     conn = None
     try:
         conn = get_db_connection()

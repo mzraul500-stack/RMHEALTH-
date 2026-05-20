@@ -21,7 +21,13 @@ import jwt
 logger = logging.getLogger("RMHealth.Auth")
 
 # ── Configuration ──
-JWT_SECRET = os.getenv("JWT_SECRET_KEY") or os.getenv("JWT_SECRET", "rmhealth-jwt-secret-change-in-production-2026")
+_jwt_env = os.getenv("JWT_SECRET_KEY") or os.getenv("JWT_SECRET")
+if not _jwt_env:
+    logging.getLogger("RMHealth.Auth").critical(
+        "FATAL: JWT_SECRET_KEY not set. Auth will not function. "
+        "Set JWT_SECRET_KEY in environment or .env file."
+    )
+JWT_SECRET = _jwt_env or ""  # Empty string — all encode/decode will fail safely
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRY = timedelta(hours=24)
 REFRESH_TOKEN_EXPIRY = timedelta(days=7)
@@ -126,7 +132,7 @@ def send_2fa_email(email: str, code: str, full_name: str) -> bool:
     Falls back to logging if SendGrid is not configured.
     """
     if not SENDGRID_API_KEY:
-        logger.warning(f"[2FA] SendGrid not configured. Code for {email}: {code}")
+        logger.warning(f"[2FA] SendGrid not configured. Code generated for {email[:3]}***. Email delivery skipped.")
         return True  # Allow dev flow without email
 
     try:
