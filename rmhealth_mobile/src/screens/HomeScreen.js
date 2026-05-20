@@ -543,12 +543,14 @@ export const HomeScreen = () => {
                     <Text style={{ fontSize: 12, fontWeight: '900', color: '#64748B', letterSpacing: 1, marginBottom: 8 }}>
                       {language === 'en' ? 'CURRENT STATUS' : 'ESTADO ACTUAL'}
                     </Text>
-                    <View style={s.analysisHeader}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ marginBottom: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                         <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: statusColor }} />
-                        <Text style={[s.analysisLevel, { color: statusColor }]}>{currentStatus}</Text>
+                        <Text style={[s.analysisLevel, { color: statusColor }]}>
+                          {language === 'en' ? 'Status: ' : 'Estado: '}{currentStatus}
+                        </Text>
                       </View>
-                      <Text style={s.analysisScore}>
+                      <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '700', marginBottom: 2 }}>
                         {language === 'en' ? 'Preventive Score' : 'Score preventivo'}: {clinicalScore.toFixed(0)}/100
                       </Text>
                     </View>
@@ -560,9 +562,23 @@ export const HomeScreen = () => {
                       </Text>
                     </View>
                     {clinicalFactors.length > 0 ? (
-                      clinicalFactors.map((f, i) => (
-                        <Text key={i} style={s.factorItem}>• {f}</Text>
-                      ))
+                      clinicalFactors.map((f, i) => {
+                        // Soften clinical terminology for end-user
+                        let displayText = f;
+                        if (language !== 'en') {
+                          displayText = displayText
+                            .replace(/Hipoxemia leve/gi, 'Oxigenación ligeramente baja en esta lectura')
+                            .replace(/Hipoxemia moderada/gi, 'Nivel de oxígeno bajo en esta lectura')
+                            .replace(/Hipoxemia severa/gi, 'Nivel de oxígeno muy bajo – confirmar medición')
+                            .replace(/Taquicardia/gi, 'Frecuencia cardiaca elevada')
+                            .replace(/Bradicardia/gi, 'Frecuencia cardiaca baja')
+                            .replace(/Hipertensión/gi, 'Presión arterial elevada')
+                            .replace(/Hipotensión/gi, 'Presión arterial baja')
+                            .replace(/Hiperglucemia/gi, 'Nivel de glucosa elevado')
+                            .replace(/Hipoglucemia/gi, 'Nivel de glucosa bajo');
+                        }
+                        return <Text key={i} style={s.factorItem}>• {displayText}</Text>;
+                      })
                     ) : (
                       <Text style={[s.factorItem, { color: '#10B981' }]}>
                         {language === 'en'
@@ -616,9 +632,11 @@ export const HomeScreen = () => {
                       {language === 'en' ? 'Model confidence: ' : 'Confianza del modelo: '}
                       {mlTriage.confidence != null ? `${(mlTriage.confidence * 100).toFixed(1)}%` : '--'}
                     </Text>
-                    {mlFactors.length > 0 && mlFactors.map((f, i) => (
-                      <Text key={i} style={[s.factorItem, { color: '#94A3B8' }]}>• {f}</Text>
-                    ))}
+                    {mlFactors.length > 0 && (
+                      <Text style={[s.factorItem, { color: '#94A3B8' }]}>
+                        • {language === 'en' ? 'Preventive model: variation detected' : 'Modelo preventivo: variación detectada'}
+                      </Text>
+                    )}
                     <Text style={{ fontSize: 11, color: '#475569', lineHeight: 16, marginTop: 4 }}>{trendNote}</Text>
                   </View>
                 );
