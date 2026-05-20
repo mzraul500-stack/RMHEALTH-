@@ -4230,6 +4230,36 @@ async def download_expediente_pdf(request: Request, user=Depends(verify_token_or
                 "email": "—"
             })
 
+        # Preventive alerts (last 90 days)
+        alerts_list = []
+        try:
+            cursor.execute("""
+                SELECT metric, severity, status, created_at
+                FROM preventive_alerts
+                WHERE user_id = %s AND created_at >= CURRENT_TIMESTAMP - INTERVAL '90 days'
+                ORDER BY created_at DESC LIMIT 50
+            """, (token_user_id,))
+            alerts_list = [dict(a) for a in cursor.fetchall()]
+        except Exception:
+            pass  # Table may not exist
+
+        # Medication dose counts (last 30 days)
+        dose_counts = {}
+        try:
+            cursor.execute("""
+                SELECT medication_id,
+                       COUNT(*) as taken
+                FROM medication_doses
+                WHERE user_id = %s AND dose_date >= CURRENT_DATE - INTERVAL '30 days'
+                GROUP BY medication_id
+            """, (token_user_id,))
+            for row in cursor.fetchall():
+                dose_counts[str(row["medication_id"])] = {
+                    "taken": row["taken"], "missed": "—"
+                }
+        except Exception:
+            pass  # Table may not exist
+
         # Generate PDF
         generator = ExpedientePDFGenerator(language=language)
         pdf_bytes = generator.generate(
@@ -4239,6 +4269,9 @@ async def download_expediente_pdf(request: Request, user=Depends(verify_token_or
             conditions=[dict(c) for c in conditions],
             allergies_list=[dict(a) for a in allergies_list],
             contacts=[dict(c) for c in contacts],
+            sleep_data=None,  # Sleep data is client-side only (Health Connect)
+            alerts=alerts_list if alerts_list else None,
+            dose_counts=dose_counts if dose_counts else None,
         )
 
         # Update retention date (NOM-004: 5 years from last activity)
