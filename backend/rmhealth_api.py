@@ -874,15 +874,36 @@ async def receive_vital_signs(data: VitalSigns, request: Request, user=Depends(v
             ml_result["_source"] = "heuristic_fallback"
             ml_rank = severity_rank.get(ml_result["level"], 0)
 
-        # Take the higher severity between ML and heuristic
+        # ── ML RECONCILIATION (safety-gated) ──────────────────────────────
+        # ML can provide PREVENTIVE CONTEXT but CANNOT trigger emergency alone.
+        # Emergency activation requires MedicalEngine/CJM confirmation.
+        # Rationale: ML confidence ≠ clinical risk. A model can be 100% confident
+        # in class ALTO for a borderline SpO2, but MedicalEngine score may be 10/100.
         if ml_rank > heuristic_rank and ml_result["model_available"]:
-            # Translate Spanish ML label to English for the heuristic field
-            analysis.nivel_criticidad = _ES_TO_EN.get(ml_result["level"], ml_result["level"])
-            if ml_rank >= 2:
-                analysis.emergencia_detectada = True
+            # Log the ML elevation as a risk factor for transparency
             analysis.factores_riesgo.append(
                 f"ML Model: {ml_result['level']} (confidence={ml_result['confidence']:.2f})"
             )
+            # ML can raise the DISPLAY severity for monitoring purposes,
+            # but NEVER sets emergencia_detectada. Only MedicalEngine score thresholds
+            # or CJM CRITICAL + confirmed escalation can do that.
+            # NOTE: We do NOT override analysis.nivel_criticidad from ML alone.
+            # The display_severity field (added to response) will carry the ML info.
+            if ml_rank >= 3:  # CRITICO from ML → log warning, still no auto-emergency
+                logger.warning(
+                    "ML_CRITICO_WITHOUT_ENGINE_CONFIRMATION: ML predicted CRITICO but "
+                    "MedicalEngine score=%.1f (level=%s) for user %s. "
+                    "Emergency NOT auto-triggered. Requires confirmation.",
+                    analysis.score_riesgo, analysis.nivel_criticidad, data.usuario_id,
+                )
+            elif ml_rank >= 2:  # ALTO from ML
+                logger.info(
+                    "ML_ALTO_PREVENTIVE: ML predicted ALTO (confidence=%.2f) but "
+                    "MedicalEngine score=%.1f (level=%s) for user %s. "
+                    "Added as preventive observation, no emergency dispatch.",
+                    ml_result['confidence'], analysis.score_riesgo,
+                    analysis.nivel_criticidad, data.usuario_id,
+                )
 
         # ── CLINICAL SAFETY FLOOR ───────────────────────────────────────────
         # When 2+ clinical findings are detected simultaneously, the combined
@@ -926,8 +947,48 @@ async def receive_vital_signs(data: VitalSigns, request: Request, user=Depends(v
             pass
 
 
+        # ── EMERGENCY SAFETY GATE ──────────────────────────────────────────
+        # Emergency dispatch ONLY fires when ALL of these are true:
+        #   1. MedicalEngine set emergencia_detectada = True (score >= UMBRAL_MEDIA)
+        #   2. MedicalEngine score >= 50 (confirmed clinical severity)
+        #   3. MedicalEngine nivel_criticidad is CRITICAL or HIGH
+        # ML confidence, ML class, trends alone CANNOT trigger emergency.
+        # CJM escalation_action is informational — it recommends but doesn't dispatch.
+        _emergency_eligible = (
+            analysis.emergencia_detectada
+            and analysis.score_riesgo >= MedicalEngine.UMBRAL_MEDIA  # 50
+            and analysis.nivel_criticidad in ("CRITICAL", "HIGH")
+        )
+        _emergency_trigger_source = "MedicalEngine" if _emergency_eligible else "none"
+
+        # If CJM is available and recommends escalation, note it but don't override
+        if cjm_result_dict and cjm_result_dict.get("available") is not False:
+            _cjm_action = cjm_result_dict.get("escalation_action", "NONE")
+            if _cjm_action in ("AUTO_ESCALATION_CANDIDATE", "ESCALATE_IF_CONFIRMED"):
+                if not _emergency_eligible:
+                    logger.info(
+                        "CJM recommends escalation (%s) but MedicalEngine score=%.1f "
+                        "does not confirm emergency for user %s",
+                        _cjm_action, analysis.score_riesgo, data.usuario_id,
+                    )
+                else:
+                    _emergency_trigger_source = "MedicalEngine+CJM"
+
+        # Compute display severity: reconcile ML + MedicalEngine for UI
+        # ML can elevate display but cannot make it look like an emergency
+        _me_rank = severity_rank.get(analysis.nivel_criticidad, 0)
+        if ml_rank > _me_rank and ml_result["model_available"]:
+            # Show the higher of the two, but cap at HIGH if not emergency-eligible
+            _display_sev_es = ml_result["level"]
+            if ml_rank >= 3 and not _emergency_eligible:
+                _display_sev_es = "ALTO"  # cap CRITICO display to ALTO if no emergency
+            _display_severity = _ES_TO_EN.get(_display_sev_es, _display_sev_es)
+        else:
+            _display_severity = analysis.nivel_criticidad
+        # ──────────────────────────────────────────────────────────────────
+
         hospital = None
-        if analysis.emergencia_detectada:
+        if _emergency_eligible:
             # 5. Handle Hospital Routing & FHIR Generation
             hospital = HospitalGateway.get_routing_decission(
                 priority=analysis.nivel_criticidad,
@@ -939,9 +1000,9 @@ async def receive_vital_signs(data: VitalSigns, request: Request, user=Depends(v
             )
 
             logger.info(
-                f"EMERGENCY DETECTED: {analysis.nivel_criticidad} for user "
-                f"{data.usuario_id} (ML={ml_result['level']}, "
-                f"confidence={(ml_result.get('confidence') or 0.0):.2f})"
+                f"EMERGENCY CONFIRMED: {analysis.nivel_criticidad} for user "
+                f"{data.usuario_id} (score={analysis.score_riesgo:.1f}, "
+                f"ML={ml_result['level']}, trigger={_emergency_trigger_source})"
             )
 
             # 6a. SEND FHIR BUNDLE TO HOSPITAL ENDPOINT
@@ -979,7 +1040,7 @@ async def receive_vital_signs(data: VitalSigns, request: Request, user=Depends(v
         if db_available and conn:
             try:
                 cursor = conn.cursor()
-                if analysis.emergencia_detectada:
+                if _emergency_eligible:
                     # Professional Clinical Description
                     clinical_desc = (
                         f"ID: {data.usuario_id} | Edad: {real_context.edad} | Sangre: {real_context.tipo_sangre} | "
@@ -1176,7 +1237,12 @@ async def receive_vital_signs(data: VitalSigns, request: Request, user=Depends(v
             "preventive_alerts_generated": preventive_count,
             "preventive_alerts": [pa.model_dump() for pa in prev_result.alerts] if 'prev_result' in locals() and prev_result and prev_result.alerts else [],
             "contextual_analysis": cjm_result_dict,
-            "final_authority": "MedicalEngine"
+            "final_authority": "MedicalEngine",
+            # ── Emergency gating contract (v2) ──
+            "emergency_eligible": _emergency_eligible,
+            "emergency_trigger_source": _emergency_trigger_source,
+            "display_severity": _display_severity,
+            "clinical_score": round(min(analysis.score_riesgo, 100.0), 1),
         }
 
     except Exception as e:

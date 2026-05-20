@@ -180,8 +180,9 @@ export const HomeScreen = () => {
         setLastSync(new Date().toLocaleTimeString());
         await LocalHistoryService.saveRecord(response, payload);
 
-        // Trigger modal for preventive alerts OR if ml_triage is HIGH/CRITICAL
-        const hasCriticalTriage = response.ml_triage && (response.ml_triage.level === 'CRITICAL' || response.ml_triage.level === 'HIGH');
+        // Trigger modal for preventive alerts OR if backend confirms emergency
+        // SAFETY: Only use emergency_eligible from backend, NOT raw ML level
+        const isEmergencyEligible = response.emergency_eligible === true;
         let critical = null;
         
         if (response.preventive_alerts && response.preventive_alerts.length > 0) {
@@ -190,10 +191,10 @@ export const HomeScreen = () => {
           );
         }
 
-        if (critical || hasCriticalTriage) {
+        if (critical || isEmergencyEligible) {
           setCriticalAlert(critical || { 
-            severity: response.ml_triage?.level || 'HIGH', 
-            message: 'Anomalía crítica detectada en signos vitales.',
+            severity: response.display_severity || response.analysis?.nivel_criticidad || 'HIGH', 
+            message: 'Anomalía detectada en signos vitales.',
             recommendation: response.analysis?.recomendacion || 'Requiere atención médica.'
           });
           setShowCriticalModal(true);
@@ -309,7 +310,10 @@ export const HomeScreen = () => {
     LOW:      'BAJO',    BAJO:    'BAJO',
     NORMAL:   'NORMAL',
   };
-  const normalizedLevel = ML_LEVEL_MAP[mlTriage?.level] || mlTriage?.level || '';
+  // Use display_severity from backend (reconciled ML + MedicalEngine)
+  // Falls back to ML level if backend doesn't provide it (backwards compat)
+  const displaySeverity = lastResult?.display_severity || mlTriage?.level || '';
+  const normalizedLevel = ML_LEVEL_MAP[displaySeverity] || ML_LEVEL_MAP[mlTriage?.level] || mlTriage?.level || '';
 
   const triageColor = {
     'CRÍTICO': COLORS.error, ALTO: '#F97316', MEDIO: '#F59E0B', BAJO: COLORS.success, NORMAL: COLORS.success,
@@ -548,84 +552,150 @@ export const HomeScreen = () => {
             </View>
           </View>
 
-          {/* ── ML RESULT ── */}
           {lastResult && (
             <View style={s.resultCard}>
               <Text style={s.resultTitle}>
-                {language === 'en' ? 'Trend Detection Report' : 'Reporte de Detección de Tendencias'}
+                {language === 'en' ? 'Preventive Observation Report' : 'Reporte de Observación Preventiva'}
               </Text>
 
-              {mlTriage && (
-                <View style={s.triageSection}>
-                  <View style={[s.triageBadge, { backgroundColor: triageColor + '18', borderColor: triageColor }]}>
-                    <Text style={[s.triageLevel, { color: triageColor }]}>{normalizedLevel}</Text>
-                    <Text style={s.triageConf}>
-                      {mlTriage.confidence != null
-                        ? `${(mlTriage.confidence * 100).toFixed(1)}%`
-                        : mlTriage.probabilities
-                          ? `${(Math.max(...Object.values(mlTriage.probabilities)) * 100).toFixed(1)}%`
-                          : '--'}
-                    </Text>
-                  </View>
+              {/* ── SECTION 1: ESTADO ACTUAL ── */}
+              {analysis && (() => {
+                const clinicalScore = lastResult?.clinical_score ?? analysis.score_riesgo ?? 0;
+                const emergencyEligible = lastResult?.emergency_eligible === true;
+                // Determine current status label based on MedicalEngine severity
+                const meSeverity = analysis.nivel_criticidad || 'NORMAL';
+                const statusMap = language === 'en'
+                  ? { CRITICAL: 'Critical', HIGH: 'High – Monitoring', MEDIUM: 'Monitoring', LOW: 'Low', NORMAL: 'Normal' }
+                  : { CRITICAL: 'Crítico', HIGH: 'Alto – Seguimiento', MEDIUM: 'Seguimiento', LOW: 'Bajo', NORMAL: 'Normal' };
+                const currentStatus = statusMap[meSeverity] || statusMap.NORMAL;
+                const statusColor = { CRITICAL: '#EF4444', HIGH: '#F97316', MEDIUM: '#F59E0B', LOW: '#10B981', NORMAL: '#10B981' }[meSeverity] || '#10B981';
 
-                  {mlTriage.probabilities && (
-                    <View style={s.probContainer}>
-                      {Object.entries(mlTriage.probabilities).map(([label, prob]) => (
-                        <View key={label} style={s.probRow}>
-                          <Text style={s.probLabel}>{label}</Text>
-                          <View style={s.probBarBg}>
-                            <View style={[s.probBarFill, { width: `${prob * 100}%`, backgroundColor: triageColor }]} />
-                          </View>
-                          <Text style={s.probValue}>{(prob * 100).toFixed(1)}%</Text>
-                        </View>
-                      ))}
+                // Clinical risk factors (exclude ML and context labels)
+                const clinicalFactors = (analysis.factores_riesgo || []).filter(
+                  f => !f.startsWith('ML Model:') && !f.startsWith('Contexto:') && !f.startsWith('Piso clínico')
+                );
+
+                return (
+                  <View style={[s.analysisSection, { borderLeftWidth: 3, borderLeftColor: statusColor, paddingLeft: 12 }]}>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#64748B', letterSpacing: 1, marginBottom: 8 }}>
+                      {language === 'en' ? 'CURRENT STATUS' : 'ESTADO ACTUAL'}
+                    </Text>
+                    <View style={s.analysisHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: statusColor }} />
+                        <Text style={[s.analysisLevel, { color: statusColor }]}>{currentStatus}</Text>
+                      </View>
+                      <Text style={s.analysisScore}>
+                        {language === 'en' ? 'Preventive Score' : 'Score preventivo'}: {clinicalScore.toFixed(0)}/100
+                      </Text>
                     </View>
-                  )}
-                  <Text style={s.modelBadge}>
-                    GradientBoosting · {mlTriage.accuracy != null
-                      ? `${(mlTriage.accuracy * 100).toFixed(1)}%`
-                      : '99.4%'} accuracy · Vertex AI v4
-                  </Text>
-                </View>
-              )}
-
-              {analysis && (
-                <View style={s.analysisSection}>
-                  <View style={s.analysisHeader}>
-                    <Text style={s.analysisLevel}>{(() => {
-                      const lvl = analysis.nivel_criticidad;
-                      if (language === 'en') return lvl;
-                      const map = { CRITICAL: 'CRÍTICO', HIGH: 'ALTO', MEDIUM: 'MEDIO', LOW: 'BAJO', NORMAL: 'NORMAL' };
-                      return map[lvl] || lvl;
-                    })()}</Text>
-                    <Text style={s.analysisScore}>Score: {analysis.score_riesgo?.toFixed(0)}/100</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, marginBottom: 6 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: emergencyEligible ? '#EF4444' : '#10B981' }}>
+                        {language === 'en' ? 'Emergency' : 'Emergencia'}: {emergencyEligible
+                          ? (language === 'en' ? 'Yes – Protocol active' : 'Sí – Protocolo activo')
+                          : 'No'}
+                      </Text>
+                    </View>
+                    {clinicalFactors.length > 0 ? (
+                      clinicalFactors.map((f, i) => (
+                        <Text key={i} style={s.factorItem}>• {f}</Text>
+                      ))
+                    ) : (
+                      <Text style={[s.factorItem, { color: '#10B981' }]}>
+                        {language === 'en'
+                          ? '• No emergency criteria detected in current data.'
+                          : '• Tus datos actuales no muestran criterios de emergencia.'}
+                      </Text>
+                    )}
+                    <Text style={s.analysisRec}>{analysis.recomendacion}</Text>
                   </View>
-                  <Text style={s.analysisRec}>{analysis.recomendacion}</Text>
-                  {analysis.factores_riesgo?.map((f, i) => (
-                    <Text key={i} style={s.factorItem}>• {f}</Text>
-                  ))}
-                </View>
-              )}
+                );
+              })()}
 
-              {/* ── CJM CONTEXTUAL ANALYSIS ── */}
-              <ContextualAnalysisCard data={contextualAnalysis} language={language} />
+              {/* ── SECTION 2: OBSERVACIÓN DE TENDENCIA ── */}
+              {mlTriage && (() => {
+                const mlLevel = mlTriage.level || '';
+                const meLevel = analysis?.nivel_criticidad || 'NORMAL';
+                const mlRank = { BAJO: 0, NORMAL: 0, MEDIO: 1, MEDIUM: 1, ALTO: 2, HIGH: 2, CRITICO: 3, CRITICAL: 3 }[mlLevel] || 0;
+                const meRank = { BAJO: 0, NORMAL: 0, MEDIO: 1, MEDIUM: 1, ALTO: 2, HIGH: 2, CRITICO: 3, CRITICAL: 3 }[meLevel] || 0;
+                const hasContradiction = mlRank > meRank;
 
-              {/* ── SLEEP CONTEXT SUMMARY (feature-flagged, returns null when disabled) ── */}
-              <SleepSummaryCard />
+                // Determine trend status label
+                let trendStatus, trendColor;
+                if (!hasContradiction) {
+                  trendStatus = language === 'en' ? 'Stable' : 'Estable';
+                  trendColor = '#10B981';
+                } else {
+                  trendStatus = language === 'en' ? 'Punctual variation detected' : 'Variación puntual detectada';
+                  trendColor = '#F59E0B';
+                }
 
-              {hospital && (
-                <View style={s.hospitalCard}>
-                  <View style={s.hospitalIconWrap}>
-                    <Building2 size={22} color="#1B7A6E" strokeWidth={2} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.hospitalName}>{hospital.name}</Text>
-                    <Text style={s.hospitalMeta}>
-                      {hospital.eta_minutes} min · {hospital.distance_km} km · {hospital.protocol}
+                // Identify what triggered the ML observation
+                const mlFactors = (analysis?.factores_riesgo || []).filter(f => f.startsWith('ML Model:'));
+                const trendNote = hasContradiction
+                  ? (language === 'en'
+                    ? 'The model detected a variation in a punctual reading. This does not indicate an emergency. If the reading repeats, confirm measurement and consider consulting a professional.'
+                    : 'El modelo detectó una variación en una lectura puntual. Esto no indica emergencia. Si la lectura se repite, confirma la medición y considera consultar a un profesional.')
+                  : (language === 'en'
+                    ? 'No significant variation detected between the model observation and the clinical assessment.'
+                    : 'Sin variación significativa entre la observación del modelo y la evaluación clínica.');
+
+                return (
+                  <View style={[s.analysisSection, { borderLeftWidth: 3, borderLeftColor: trendColor, paddingLeft: 12, marginTop: 12 }]}>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#64748B', letterSpacing: 1, marginBottom: 8 }}>
+                      {language === 'en' ? 'TREND OBSERVATION' : 'OBSERVACIÓN DE TENDENCIA'}
                     </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: trendColor }} />
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: trendColor }}>{trendStatus}</Text>
+                    </View>
+                    <Text style={{ fontSize: 11, color: '#64748B', marginBottom: 6 }}>
+                      {language === 'en' ? 'Model confidence: ' : 'Confianza del modelo: '}
+                      {mlTriage.confidence != null ? `${(mlTriage.confidence * 100).toFixed(1)}%` : '--'}
+                    </Text>
+                    {mlFactors.length > 0 && mlFactors.map((f, i) => (
+                      <Text key={i} style={[s.factorItem, { color: '#94A3B8' }]}>• {f}</Text>
+                    ))}
+                    <Text style={{ fontSize: 11, color: '#475569', lineHeight: 16, marginTop: 4 }}>{trendNote}</Text>
                   </View>
-                </View>
+                );
+              })()}
+
+              {/* Model info badge */}
+              {mlTriage && (
+                <Text style={s.modelBadge}>
+                  GradientBoosting · {mlTriage.accuracy != null
+                    ? `${(mlTriage.accuracy * 100).toFixed(1)}%`
+                    : '99.4%'} accuracy · Vertex AI v4
+                </Text>
               )}
+
+              {/* Non-diagnostic disclaimer */}
+              <Text style={[s.factorItem, { fontStyle: 'italic', marginTop: 8, color: '#94A3B8', fontSize: 10 }]}>
+                {language === 'en'
+                  ? 'This is a preventive observation. It does not constitute a medical diagnosis.'
+                  : 'Observación preventiva. No constituye diagnóstico médico.'}
+              </Text>
+            </View>
+          )}
+
+          {/* ── CJM CONTEXTUAL ANALYSIS ── */}
+          {lastResult && <ContextualAnalysisCard data={contextualAnalysis} language={language} />}
+
+          {/* ── SLEEP CONTEXT SUMMARY (feature-flagged, returns null when disabled) ── */}
+          <SleepSummaryCard />
+
+          {hospital && (
+            <View style={s.hospitalCard}>
+              <View style={s.hospitalIconWrap}>
+                <Building2 size={22} color="#1B7A6E" strokeWidth={2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.hospitalName}>{hospital.name}</Text>
+                <Text style={s.hospitalMeta}>
+                  {hospital.eta_minutes} min · {hospital.distance_km} km · {hospital.protocol}
+                </Text>
+              </View>
             </View>
           )}
 

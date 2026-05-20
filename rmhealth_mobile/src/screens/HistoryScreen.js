@@ -508,8 +508,8 @@ export const HistoryScreen = () => {
                 )}
                 <Text style={styles.desc} numberOfLines={2}>{item.descripcion}</Text>
                 <View style={styles.metaRow}>
-                  <Text style={styles.meta}>{txt.ml}: {(SEVERITY_MAP[language] || SEVERITY_MAP.es)[item.ml_level] || item.ml_level} ({(item.ml_confidence * 100).toFixed(0)}%)</Text>
-                  <Text style={styles.meta}>{txt.score}: {item.score?.toFixed?.(0) || item.score}</Text>
+                  <Text style={styles.meta}>{txt.ml}: {(SEVERITY_MAP[language] || SEVERITY_MAP.es)[item.ml_level] || item.ml_level} ({language === 'en' ? 'conf' : 'conf'}. {(item.ml_confidence * 100).toFixed(0)}%)</Text>
+                  <Text style={styles.meta}>{language === 'en' ? 'Preventive Score' : 'Score preventivo'}: {item.score?.toFixed?.(0) || item.score}</Text>
                 </View>
               </View>
             </View>

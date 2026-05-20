@@ -26,13 +26,15 @@ export const LocalHistoryService = {
       const record = {
         id: Date.now().toString(),
         timestamp: new Date().toISOString(),
-        tipo_emergencia: result.analysis?.nivel_criticidad || 'NORMAL',
+        tipo_emergencia: result.display_severity || result.analysis?.nivel_criticidad || 'NORMAL',
         descripcion: (result.analysis?.factores_riesgo || []).join(', ') || 'Sin factores de riesgo',
-        estado: result.analysis?.emergencia_detectada ? 'activa' : 'normal',
+        estado: result.emergency_eligible ? 'activa' : 'normal',
         ml_level: result.ml_triage?.level || 'N/A',
         ml_confidence: result.ml_triage?.confidence || 0,
-        score: result.analysis?.score_riesgo || 0,
+        score: result.clinical_score || result.analysis?.score_riesgo || 0,
         recomendacion: result.analysis?.recomendacion || '',
+        display_severity: result.display_severity || result.analysis?.nivel_criticidad || 'NORMAL',
+        emergency_eligible: result.emergency_eligible || false,
         vitals: {
           hr: inputValues.frecuencia_cardiaca,
           spo2: inputValues.oxigeno,
