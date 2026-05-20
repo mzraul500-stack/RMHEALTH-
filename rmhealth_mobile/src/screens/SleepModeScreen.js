@@ -21,7 +21,7 @@
  * © 2025-2026 Morales Zepeda Raúl | INDAUTOR 03-2025-070109072500-01
  */
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   StyleSheet, View, Text, ScrollView, SafeAreaView,
   TouchableOpacity, ActivityIndicator, RefreshControl,
@@ -50,6 +50,17 @@ export const SleepModeScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [chartRange, setChartRange] = useState('7d');
+  const scrollViewRef = useRef(null);
+  const dayCardYRef = useRef(0);
+
+  // Auto-scroll to day card when a date is selected
+  useEffect(() => {
+    if (selectedDate && scrollViewRef.current && dayCardYRef.current > 0) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: dayCardYRef.current - 80, animated: true });
+      }, 150);
+    }
+  }, [selectedDate]);
 
   // Pull-to-refresh
   const onRefresh = useCallback(async () => {
@@ -134,6 +145,7 @@ export const SleepModeScreen = () => {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
         }
+        ref={scrollViewRef}
       >
         {/* Header */}
         <View style={s.header}>
@@ -283,13 +295,18 @@ export const SleepModeScreen = () => {
 
           {/* Selected day detail */}
           {selectedDate && (
-            selectedDayData ? (
-              <DayCard day={selectedDayData} />
-            ) : (
-              <View style={s.emptyDayCard}>
-                <Text style={s.emptyDayText}>Sin datos de sueño para {formatDateSpanish(selectedDate)}</Text>
-              </View>
-            )
+            <View onLayout={(e) => { dayCardYRef.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height; }}>
+              {selectedDayData ? (
+                <DayCard day={selectedDayData} />
+              ) : (
+                <View style={s.emptyDayCard}>
+                  <Text style={s.emptyDayText}>Sin datos de sueño para {formatDateSpanish(selectedDate)}</Text>
+                  <Text style={[s.emptyDayText, { marginTop: 4, fontSize: 11 }]}>
+                    Es posible que tu reloj no haya registrado descanso ese día.
+                  </Text>
+                </View>
+              )}
+            </View>
           )}
         </View>
 
