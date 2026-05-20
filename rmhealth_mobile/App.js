@@ -355,7 +355,7 @@ function PermissionGate({ children }) {
 // CONSENT GATE — Granular data consent (M2)
 // ============================================================
 function ConsentGate({ children }) {
-  const { accessToken, user } = useAuth();
+  const { accessToken, user, refreshAccessToken, logout } = useAuth();
   const [consentsDone, setConsentsDone] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -372,16 +372,36 @@ function ConsentGate({ children }) {
         const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
           || 'https://rmhealth-api-292048010515.us-central1.run.app/api';
 
-        const res = await fetch(`${API_BASE}/users/${user.id}/consents`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
+        let token = accessToken;
+        let res = await fetch(`${API_BASE}/users/${user.id}/consents`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
+
+        // If 401, try refreshing token once then retry
+        if (res.status === 401) {
+          console.warn('[ConsentGate] Token expired, attempting refresh...');
+          const refreshed = await refreshAccessToken();
+          if (refreshed) {
+            // Token was refreshed — retry with new token from SecureStore
+            const SecureStore = require('expo-secure-store');
+            token = await SecureStore.getItemAsync('rmhealth_access_token');
+            res = await fetch(`${API_BASE}/users/${user.id}/consents`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+          } else {
+            // Refresh failed — session is invalid, force re-login
+            console.warn('[ConsentGate] Refresh failed — logging out');
+            await logout();
+            return;
+          }
+        }
 
         if (res.ok) {
           const data = await res.json();
           const hasVitalSignsConsent = data.consents?.vital_signs?.accepted === true;
           setConsentsDone(hasVitalSignsConsent);
         } else {
-          // If 404 or error, show consent screen
+          // If 404 or other error (not 401), show consent screen
           setConsentsDone(false);
         }
       } catch (e) {

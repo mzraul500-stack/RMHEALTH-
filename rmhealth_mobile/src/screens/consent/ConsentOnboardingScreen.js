@@ -126,11 +126,12 @@ export function ConsentOnboardingScreen({ onComplete }) {
       const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
         || 'https://rmhealth-api-292048010515.us-central1.run.app/api';
 
-      const response = await fetch(`${API_BASE}/consents`, {
+      let token = accessToken;
+      let response = await fetch(`${API_BASE}/consents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           consents,
@@ -138,7 +139,47 @@ export function ConsentOnboardingScreen({ onComplete }) {
         }),
       });
 
+      // If 401, try refreshing token once then retry
+      if (response.status === 401) {
+        const { refreshAccessToken } = require('./../../contexts/AuthContext');
+        // Use the hook value already destructured — refresh via auth context
+        const SecureStore = require('expo-secure-store');
+        const refreshToken = await SecureStore.getItemAsync('rmhealth_refresh_token');
+        const userData = await SecureStore.getItemAsync('rmhealth_user_data');
+        if (refreshToken && userData) {
+          const parsedUser = JSON.parse(userData);
+          const refreshRes = await fetch(`${API_BASE}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: refreshToken, user_id: parsedUser.id }),
+          });
+          if (refreshRes.ok) {
+            const refreshData = await refreshRes.json();
+            await SecureStore.setItemAsync('rmhealth_access_token', refreshData.access_token);
+            if (refreshData.refresh_token) {
+              await SecureStore.setItemAsync('rmhealth_refresh_token', refreshData.refresh_token);
+            }
+            token = refreshData.access_token;
+            // Retry save with new token
+            response = await fetch(`${API_BASE}/consents`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                consents,
+                text_version: CONSENT_VERSION,
+              }),
+            });
+          }
+        }
+      }
+
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('SESSION_EXPIRED');
+        }
         throw new Error(`Server error: ${response.status}`);
       }
 
@@ -150,12 +191,14 @@ export function ConsentOnboardingScreen({ onComplete }) {
       onComplete();
     } catch (e) {
       console.error('[Consent] Save failed:', e);
-      Alert.alert(
-        'Error',
-        isEs
-          ? 'No se pudieron guardar los consentimientos. Intenta de nuevo.'
-          : 'Could not save consents. Please try again.',
-      );
+      const msg = e.message === 'SESSION_EXPIRED'
+        ? (isEs
+            ? 'Tu sesión ha expirado. Por favor, cierra la app y vuelve a iniciar sesión.'
+            : 'Your session has expired. Please close the app and log in again.')
+        : (isEs
+            ? 'No se pudieron guardar los consentimientos. Intenta de nuevo.'
+            : 'Could not save consents. Please try again.');
+      Alert.alert('Error', msg);
     } finally {
       setSaving(false);
     }
