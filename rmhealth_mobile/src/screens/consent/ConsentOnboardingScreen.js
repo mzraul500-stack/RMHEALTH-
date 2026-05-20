@@ -84,7 +84,7 @@ const CONSENT_ITEMS = [
 
 export function ConsentOnboardingScreen({ onComplete }) {
   const { language } = useLanguage();
-  const { accessToken, user } = useAuth();
+  const { accessToken, user, refreshAccessToken } = useAuth();
   const insets = useSafeAreaInsets();
   const [consents, setConsents] = useState(() => {
     const initial = {};
@@ -126,7 +126,8 @@ export function ConsentOnboardingScreen({ onComplete }) {
       const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
         || 'https://rmhealth-api-292048010515.us-central1.run.app/api';
 
-      let token = accessToken;
+      const SecureStore = require('expo-secure-store');
+      let token = await SecureStore.getItemAsync('rmhealth_access_token') || accessToken;
       let response = await fetch(`${API_BASE}/consents`, {
         method: 'POST',
         headers: {
@@ -139,40 +140,22 @@ export function ConsentOnboardingScreen({ onComplete }) {
         }),
       });
 
-      // If 401, try refreshing token once then retry
+      // If 401, try refreshing token once via AuthContext then retry
       if (response.status === 401) {
-        const { refreshAccessToken } = require('./../../contexts/AuthContext');
-        // Use the hook value already destructured — refresh via auth context
-        const SecureStore = require('expo-secure-store');
-        const refreshToken = await SecureStore.getItemAsync('rmhealth_refresh_token');
-        const userData = await SecureStore.getItemAsync('rmhealth_user_data');
-        if (refreshToken && userData) {
-          const parsedUser = JSON.parse(userData);
-          const refreshRes = await fetch(`${API_BASE}/auth/refresh`, {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          token = await SecureStore.getItemAsync('rmhealth_access_token');
+          response = await fetch(`${API_BASE}/consents`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refresh_token: refreshToken, user_id: parsedUser.id }),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              consents,
+              text_version: CONSENT_VERSION,
+            }),
           });
-          if (refreshRes.ok) {
-            const refreshData = await refreshRes.json();
-            await SecureStore.setItemAsync('rmhealth_access_token', refreshData.access_token);
-            if (refreshData.refresh_token) {
-              await SecureStore.setItemAsync('rmhealth_refresh_token', refreshData.refresh_token);
-            }
-            token = refreshData.access_token;
-            // Retry save with new token
-            response = await fetch(`${API_BASE}/consents`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                consents,
-                text_version: CONSENT_VERSION,
-              }),
-            });
-          }
         }
       }
 

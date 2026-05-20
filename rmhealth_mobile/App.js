@@ -353,47 +353,85 @@ function PermissionGate({ children }) {
 
 // ============================================================
 // CONSENT GATE — Granular data consent (M2)
+// Bounded startup: always resolves to Home, Consent, Login, or Error.
 // ============================================================
 function ConsentGate({ children }) {
   const { accessToken, user, refreshAccessToken, logout } = useAuth();
   const [consentsDone, setConsentsDone] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [errorState, setErrorState] = useState(null); // 'rate_limit' | 'server_error' | 'network'
+  const [retryCount, setRetryCount] = useState(0);
+  const isRunningRef = React.useRef(false);
+  const hasRetriedRefreshRef = React.useRef(false);
 
   useEffect(() => {
+    // Guard: only run once at a time, don't re-run on accessToken changes from refresh
+    if (isRunningRef.current) return;
+
     const checkConsents = async () => {
+      // If no auth data, skip — AuthGate will handle login
       if (!accessToken || !user?.id) {
         setConsentsDone(false);
         setLoading(false);
         return;
       }
 
+      isRunningRef.current = true;
+      setErrorState(null);
+
       try {
-        // Check if user already has consents saved
         const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
           || 'https://rmhealth-api-292048010515.us-central1.run.app/api';
 
-        let token = accessToken;
-        let res = await fetch(`${API_BASE}/users/${user.id}/consents`, {
+        // Helper: fetch with 15s timeout
+        const fetchWithTimeout = (url, opts, timeoutMs = 15000) => {
+          return Promise.race([
+            fetch(url, opts),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs)
+            ),
+          ]);
+        };
+
+        // Read current token from SecureStore (may have been refreshed by AuthContext startup)
+        const SecureStore = require('expo-secure-store');
+        let token = await SecureStore.getItemAsync('rmhealth_access_token') || accessToken;
+
+        let res = await fetchWithTimeout(`${API_BASE}/users/${user.id}/consents`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        // If 401, try refreshing token once then retry
-        if (res.status === 401) {
+        // If 401, try refreshing token ONCE
+        if (res.status === 401 && !hasRetriedRefreshRef.current) {
+          hasRetriedRefreshRef.current = true;
           console.warn('[ConsentGate] Token expired, attempting refresh...');
           const refreshed = await refreshAccessToken();
           if (refreshed) {
-            // Token was refreshed — retry with new token from SecureStore
-            const SecureStore = require('expo-secure-store');
             token = await SecureStore.getItemAsync('rmhealth_access_token');
-            res = await fetch(`${API_BASE}/users/${user.id}/consents`, {
+            res = await fetchWithTimeout(`${API_BASE}/users/${user.id}/consents`, {
               headers: { Authorization: `Bearer ${token}` },
             });
           } else {
-            // Refresh failed — session is invalid, force re-login
             console.warn('[ConsentGate] Refresh failed — logging out');
             await logout();
-            return;
+            return; // AuthGate will show login
           }
+        }
+
+        // Handle specific HTTP error codes with user-facing messages
+        if (res.status === 401) {
+          // Still 401 after refresh — force re-login
+          console.warn('[ConsentGate] Still 401 after refresh — logging out');
+          await logout();
+          return;
+        }
+        if (res.status === 429) {
+          setErrorState('rate_limit');
+          return;
+        }
+        if (res.status >= 500) {
+          setErrorState('server_error');
+          return;
         }
 
         if (res.ok) {
@@ -401,24 +439,82 @@ function ConsentGate({ children }) {
           const hasVitalSignsConsent = data.consents?.vital_signs?.accepted === true;
           setConsentsDone(hasVitalSignsConsent);
         } else {
-          // If 404 or other error (not 401), show consent screen
+          // 403, 404, or other — show consent screen
           setConsentsDone(false);
         }
       } catch (e) {
-        console.warn('[ConsentGate] Check failed:', e);
-        setConsentsDone(false);
+        console.warn('[ConsentGate] Check failed:', e?.message);
+        if (e?.message === 'TIMEOUT' || e?.message?.includes('Network')) {
+          setErrorState('network');
+        } else {
+          // Unknown error — show consent screen as fallback
+          setConsentsDone(false);
+        }
       } finally {
         setLoading(false);
+        isRunningRef.current = false;
       }
     };
 
     checkConsents();
-  }, [accessToken, user]);
+  // Only re-run when user identity changes or on explicit retry, NOT on accessToken changes from refresh
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, retryCount]);
+
+  // Retry handler for recoverable errors
+  const handleRetry = () => {
+    setLoading(true);
+    setErrorState(null);
+    isRunningRef.current = false;
+    hasRetriedRefreshRef.current = false;
+    setRetryCount(c => c + 1); // triggers useEffect re-run
+  };
 
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
         <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  // Recoverable error states — show message with retry/logout options
+  if (errorState) {
+    const messages = {
+      rate_limit: {
+        title: 'Demasiados intentos',
+        body: 'Por favor espera un momento antes de intentar de nuevo.',
+        icon: '⏳',
+      },
+      server_error: {
+        title: 'Servicio temporalmente no disponible',
+        body: 'El servidor no está respondiendo. Intenta de nuevo en unos segundos.',
+        icon: '🔧',
+      },
+      network: {
+        title: 'Error de conexión',
+        body: 'No se pudo conectar al servidor. Verifica tu conexión a internet.',
+        icon: '📡',
+      },
+    };
+    const msg = messages[errorState] || messages.network;
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background, padding: 32 }}>
+        <Text style={{ fontSize: 48, marginBottom: 16 }}>{msg.icon}</Text>
+        <Text style={{ fontSize: 20, fontWeight: '900', color: COLORS.text, marginBottom: 8, textAlign: 'center' }}>{msg.title}</Text>
+        <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>{msg.body}</Text>
+        <TouchableOpacity
+          style={{ backgroundColor: COLORS.primary, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, marginBottom: 12 }}
+          onPress={handleRetry}
+        >
+          <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 15 }}>Reintentar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ paddingVertical: 10, paddingHorizontal: 24 }}
+          onPress={() => logout()}
+        >
+          <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 14 }}>Cerrar sesión</Text>
+        </TouchableOpacity>
       </View>
     );
   }
