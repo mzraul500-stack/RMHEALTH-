@@ -97,19 +97,22 @@ function MoreStack() {
 function MoreMenuScreen({ navigation }) {
   const { logout, user } = useAuth();
 
-  const menuItems = [
+  const mainItems = [
     { IconComp: User, label: 'Mi Perfil', screen: 'Profile' },
     { IconComp: FileText, label: 'Mi Expediente', screen: 'MiExpediente' },
     { IconComp: ShieldAlert, label: 'Alertas Preventivas', screen: 'PreventiveAlerts' },
     { IconComp: Watch, label: 'Dispositivos / Relojes', screen: 'DeviceSettings' },
-    { IconComp: Lock, label: 'Privacidad y Datos', screen: 'PrivacySettings' },
     { IconComp: Stethoscope, label: 'Mis Médicos', screen: 'MyDoctors' },
     { IconComp: CreditCard, label: 'Tarjeta de Emergencia', screen: 'EmergencyCard' },
-    { IconComp: Info, label: 'Acerca de RmHealth', screen: 'About' },
     // Sleep context — conditionally shown via feature flag
     ...(FEATURES.SLEEP_MODE_ENABLED ? [{ IconComp: Moon, label: 'Descanso', screen: 'SleepMode' }] : []),
+  ];
+
+  const settingsItems = [
+    { IconComp: Lock, label: 'Privacidad y Datos', screen: 'PrivacySettings' },
     // Health Connect permissions — always visible when HC is enabled
     ...(FEATURES.HEALTH_CONNECT_ENABLED ? [{ IconComp: Shield, label: 'Permisos Health Connect', screen: 'HealthConnectPermissions' }] : []),
+    { IconComp: Info, label: 'Acerca de RmHealth', screen: 'About' },
   ];
 
   const handleLogout = () => {
@@ -149,9 +152,30 @@ function MoreMenuScreen({ navigation }) {
         </View>
       )}
 
-      {menuItems.map((item, i) => (
+      {mainItems.map((item, i) => (
         <TouchableOpacity
-          key={i}
+          key={`main-${i}`}
+          style={{
+            flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface,
+            padding: 18, borderRadius: 14, marginBottom: 10,
+            borderWidth: 1, borderColor: COLORS.border, elevation: 2,
+          }}
+          onPress={() => navigation.navigate(item.screen)}
+        >
+          <item.IconComp size={22} color="#1B7A6E" strokeWidth={2} style={{ marginRight: 14 }} />
+          <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text, flex: 1 }}>{item.label}</Text>
+          <Text style={{ fontSize: 18, color: '#94A3B8' }}>›</Text>
+        </TouchableOpacity>
+      ))}
+
+      {/* Settings section header */}
+      <Text style={{ fontSize: 13, fontWeight: '800', color: '#94A3B8', marginTop: 16, marginBottom: 8, letterSpacing: 0.5 }}>
+        CONFIGURACIÓN
+      </Text>
+
+      {settingsItems.map((item, i) => (
+        <TouchableOpacity
+          key={`settings-${i}`}
           style={{
             flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface,
             padding: 18, borderRadius: 14, marginBottom: 10,
@@ -601,12 +625,14 @@ function AuthGate({ children }) {
 
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 
-function MainNavigator() {
+const RootStack = createStackNavigator();
+
+function TabNavigator() {
   const { tr } = useLanguage();
   const { isHighContrast, colors } = useTheme();
 
   return (
-    <NavigationContainer>
+    <>
       <StatusBar barStyle={isHighContrast ? "light-content" : "dark-content"} backgroundColor={colors.background} translucent={false} />
       <Tab.Navigator
         screenOptions={({ route }) => ({
@@ -661,6 +687,27 @@ function MainNavigator() {
         <Tab.Screen name="Meds" component={MedicationScreen} />
         <Tab.Screen name="More" component={MoreStack} />
       </Tab.Navigator>
+    </>
+  );
+}
+
+function MainNavigator() {
+  return (
+    <NavigationContainer>
+      <RootStack.Navigator screenOptions={{
+        headerStyle: { backgroundColor: COLORS.background, elevation: 0, shadowOpacity: 0 },
+        headerTintColor: COLORS.secondary,
+        headerTitleStyle: { fontWeight: '800' },
+      }}>
+        <RootStack.Screen name="Tabs" component={TabNavigator} options={{ headerShown: false }} />
+        {/* Quick-access screens — back returns to Home (originating tab) */}
+        <RootStack.Screen name="QA_MiExpediente" component={MiExpedienteScreen} options={{ title: 'Mi Expediente' }} />
+        <RootStack.Screen name="QA_PreventiveAlerts" component={PreventiveAlertsScreen} options={{ title: 'Alertas Preventivas', headerShown: false }} />
+        <RootStack.Screen name="QA_MyDoctors" component={MyDoctorsScreen} options={{ title: 'Mis Médicos' }} />
+        <RootStack.Screen name="QA_EmergencyCard" component={EmergencyCardScreen} options={{ title: 'Tarjeta de Emergencia' }} />
+        <RootStack.Screen name="QA_SleepMode" component={SleepModeScreen} options={{ title: 'Descanso' }} />
+        <RootStack.Screen name="QA_DeviceSettings" component={DeviceSettingsScreen} options={{ title: 'Dispositivos' }} />
+      </RootStack.Navigator>
     </NavigationContainer>
   );
 }

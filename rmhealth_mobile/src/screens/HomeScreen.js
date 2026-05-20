@@ -4,6 +4,7 @@ import {
   TextInput, Alert, ActivityIndicator, KeyboardAvoidingView,
   Platform, SafeAreaView, Dimensions,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { COLORS, SPACING } from '../theme';
 import { EmergencyButton } from '../components/EmergencyButton';
 import { VitalInput } from '../components/VitalInput';
@@ -17,7 +18,7 @@ import { CriticalAlertModal } from '../components/CriticalAlertModal';
 import { ContextualAnalysisCard } from '../components/ContextualAnalysisCard';
 import { SleepSummaryCard } from '../components/SleepSummaryCard';
 import { BPSyncBridge } from '../components/BPSyncBridge';
-import { Heart, Wind, Activity, Droplets, Thermometer, Building2, AlertTriangle, Watch } from 'lucide-react-native';
+import { Heart, Wind, Activity, Droplets, Thermometer, Building2, AlertTriangle, Watch, FileText, ShieldAlert, Stethoscope, CreditCard, Moon, Pill } from 'lucide-react-native';
 import { useWatchData } from '../hooks/useWatchData';
 import { FEATURES } from '../config/features';
 
@@ -30,6 +31,7 @@ const SCREEN_W = Dimensions.get('window').width;
 export const HomeScreen = () => {
   const { tr, toggleLanguage, language } = useLanguage();
   const { accessToken, user } = useAuth();
+  const navigation = useNavigation();
 
   // --- Manual vitals input ---
   const [heartRate, setHeartRate] = useState('');
@@ -508,6 +510,44 @@ export const HomeScreen = () => {
             </TouchableOpacity>
           </View>
 
+          {/* ── QUICK ACCESS ── */}
+          <View style={s.quickAccessSection}>
+            <Text style={s.quickAccessTitle}>
+              {language === 'en' ? 'Quick Access' : 'Accesos Rápidos'}
+            </Text>
+            <View style={s.quickAccessGrid}>
+              {[
+                { icon: FileText, label: language === 'en' ? 'My Record' : 'Mi Expediente', sub: language === 'en' ? 'History & medical report' : 'Historial y reporte médico', screen: 'QA_MiExpediente', color: '#1B7A6E' },
+                { icon: ShieldAlert, label: language === 'en' ? 'Alerts' : 'Alertas', sub: language === 'en' ? 'Alerts & calendar' : 'Alertas y calendario', screen: 'QA_PreventiveAlerts', color: '#F59E0B' },
+                { icon: Stethoscope, label: language === 'en' ? 'My Doctors' : 'Mis Médicos', sub: language === 'en' ? 'Medical contacts' : 'Contactos médicos', screen: 'QA_MyDoctors', color: '#8B5CF6' },
+                { icon: CreditCard, label: language === 'en' ? 'Emergency Card' : 'Tarjeta Emergencia', sub: language === 'en' ? 'Critical info' : 'Información crítica', screen: 'QA_EmergencyCard', color: '#EF4444' },
+                { icon: Moon, label: language === 'en' ? 'Rest' : 'Descanso', sub: language === 'en' ? 'Sleep & history' : 'Sueño e historial', screen: 'QA_SleepMode', color: '#818CF8' },
+                { icon: Pill, label: language === 'en' ? 'Medications' : 'Medicamentos', sub: language === 'en' ? 'Doses & adherence' : 'Tomas y adherencia', tab: 'Meds', color: '#10B981' },
+              ].map((item, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={s.quickCard}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (item.tab) {
+                      navigation.navigate(item.tab);
+                    } else {
+                      navigation.navigate(item.screen);
+                    }
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.label}
+                >
+                  <View style={[s.quickIconWrap, { backgroundColor: item.color + '15' }]}>
+                    <item.icon size={18} color={item.color} strokeWidth={2.5} />
+                  </View>
+                  <Text style={s.quickLabel} numberOfLines={1}>{item.label}</Text>
+                  <Text style={s.quickSub} numberOfLines={1}>{item.sub}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           {/* ── ML RESULT ── */}
           {lastResult && (
             <View style={s.resultCard}>
@@ -811,6 +851,34 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: '#3B82F6' + '50',
   },
   calibrationText: { fontSize: 11, fontWeight: '600', color: '#1E3A8A', flex: 1, lineHeight: 16 },
+
+  // Quick Access Section
+  quickAccessSection: {
+    marginHorizontal: 16, marginTop: 16,
+  },
+  quickAccessTitle: {
+    fontSize: 17, fontWeight: '800', color: COLORS.secondary, marginBottom: 12,
+  },
+  quickAccessGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 10,
+  },
+  quickCard: {
+    width: (SCREEN_W - 32 - 10) / 2, // 2 columns with gap
+    backgroundColor: COLORS.surface, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: COLORS.border,
+    elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 4,
+  },
+  quickIconWrap: {
+    width: 36, height: 36, borderRadius: 10,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 8,
+  },
+  quickLabel: {
+    fontSize: 14, fontWeight: '800', color: COLORS.secondary, marginBottom: 2,
+  },
+  quickSub: {
+    fontSize: 11, color: '#94A3B8', fontWeight: '500',
+  },
 
   disclaimerSection: {
     marginHorizontal: 16, marginTop: 24, padding: 12,

@@ -40,7 +40,8 @@ export const SleepSummaryCard = () => {
 
   const handlePress = () => {
     if (navigation) {
-      navigation.navigate('SleepMode');
+      // Use root-level route — back returns to Home
+      navigation.navigate('QA_SleepMode');
     }
   };
 

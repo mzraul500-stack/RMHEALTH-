@@ -206,6 +206,8 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 6,
+    minHeight: 32,       // Fixed height prevents misalignment when labels have different lengths
+    flexWrap: 'wrap',
   },
   labelIcon: {
     fontSize: 12,
