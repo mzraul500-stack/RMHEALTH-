@@ -41,6 +41,10 @@ export function AuthProvider({ children }) {
   const [accessToken, setAccessToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+
+  // Prevent concurrent refresh calls
+  const refreshInProgressRef = useRef(null);
 
   // Inactivity tracking
   const lastActivityRef = useRef(Date.now());
@@ -196,35 +200,77 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  /**
+   * Refresh access token with 10s timeout.
+   * Returns: { success: boolean, definitive: boolean }
+   *   success=true   → new tokens saved
+   *   definitive=true → refresh token is permanently invalid (401/403), caller should re-login
+   *   definitive=false → transient failure (timeout/network/500), session should be preserved
+   *
+   * Prevents concurrent refresh calls via refreshInProgressRef.
+   */
   const refreshAccessToken = async () => {
-    try {
-      const refreshToken = await SecureStore.getItemAsync(KEYS.REFRESH_TOKEN);
-      const userData = await SecureStore.getItemAsync(KEYS.USER_DATA);
-
-      if (!refreshToken || !userData) {
-        return false;
-      }
-
-      const parsedUser = JSON.parse(userData);
-      const response = await authFetch('/auth/refresh', {
-        method: 'POST',
-        body: JSON.stringify({
-          refresh_token: refreshToken,
-          user_id: parsedUser.id,
-        }),
-      });
-
-      if (!response.ok) {
-        return false;
-      }
-
-      const data = await response.json();
-      await saveTokens(data.access_token, data.refresh_token);
-      setAccessToken(data.access_token);
-      return true;
-    } catch (e) {
-      return false;
+    // Deduplicate: if a refresh is already in flight, wait for it
+    if (refreshInProgressRef.current) {
+      return refreshInProgressRef.current;
     }
+
+    const doRefresh = async () => {
+      try {
+        const refreshToken = await SecureStore.getItemAsync(KEYS.REFRESH_TOKEN);
+        const userData = await SecureStore.getItemAsync(KEYS.USER_DATA);
+
+        if (!refreshToken || !userData) {
+          return { success: false, definitive: true };
+        }
+
+        const parsedUser = JSON.parse(userData);
+
+        // Fetch with 10s timeout — prevents Cloud Run cold start from blocking startup
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        let response;
+        try {
+          response = await authFetch('/auth/refresh', {
+            method: 'POST',
+            body: JSON.stringify({
+              refresh_token: refreshToken,
+              user_id: parsedUser.id,
+            }),
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        if (!response.ok) {
+          // 401/403 = refresh token definitively invalid → must re-login
+          // 429/500/503 = transient → preserve session
+          const isDefinitive = response.status === 401 || response.status === 403;
+          if (!isDefinitive) {
+            setIsOffline(true);
+          }
+          return { success: false, definitive: isDefinitive };
+        }
+
+        const data = await response.json();
+        await saveTokens(data.access_token, data.refresh_token);
+        setAccessToken(data.access_token);
+        setIsOffline(false);
+        return { success: true, definitive: false };
+      } catch (e) {
+        // Network error, timeout (AbortError), etc. = transient
+        console.warn('[AuthContext] Refresh transient error:', e?.name || e?.message);
+        setIsOffline(true);
+        return { success: false, definitive: false };
+      } finally {
+        refreshInProgressRef.current = null;
+      }
+    };
+
+    refreshInProgressRef.current = doRefresh();
+    return refreshInProgressRef.current;
   };
 
   // ── Inactivity Timer ──
@@ -265,6 +311,9 @@ export function AuthProvider({ children }) {
   }, [isAuthenticated]);
 
   // ── Restore Session on App Start ──
+  // CRITICAL: Set isAuthenticated=true and isLoading=false IMMEDIATELY
+  // when stored tokens exist. Refresh happens in background.
+  // This ensures Home renders fast and no loading screen blocks the user.
 
   useEffect(() => {
     const restoreSession = async () => {
@@ -276,18 +325,27 @@ export function AuthProvider({ children }) {
           setAccessToken(storedToken);
           setUser(JSON.parse(storedUser));
           setIsAuthenticated(true);
+          // Release loading gate IMMEDIATELY — don't wait for refresh
+          setIsLoading(false);
 
-          // Try to refresh token silently
-          const refreshed = await refreshAccessToken();
-          if (!refreshed) {
-            // Token refresh failed — still use stored token (may work if not expired)
+          // Background refresh — does NOT block startup
+          const result = await refreshAccessToken();
+          if (result.definitive) {
+            // Refresh token permanently invalid — require re-login
+            console.warn('[AuthContext] Refresh token definitively invalid — clearing session');
+            await clearStorage();
+            setUser(null);
+            setAccessToken(null);
+            setIsAuthenticated(false);
           }
+          // If transient failure: session stays active with stored token
+          return;
         }
       } catch (e) {
         console.warn('[AuthContext] Session restore failed:', e);
-      } finally {
-        setIsLoading(false);
       }
+      // No stored tokens or error — show login
+      setIsLoading(false);
     };
 
     restoreSession();
@@ -298,6 +356,7 @@ export function AuthProvider({ children }) {
     accessToken,
     isAuthenticated,
     isLoading,
+    isOffline,
     register,
     login,
     verify2FA,
