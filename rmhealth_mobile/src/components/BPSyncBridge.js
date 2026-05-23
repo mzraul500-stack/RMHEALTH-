@@ -76,8 +76,8 @@ export function BPSyncBridge({ visible, lastBPTime, lastSys, lastDia, language, 
         Alert.alert(
           language === 'en' ? 'Sync failed' : 'Error de sincronización',
           language === 'en'
-            ? 'Could not write to Health Connect. Check BP write permission in settings.'
-            : 'No se pudo escribir en Health Connect. Revisa el permiso de escritura de presión arterial.',
+            ? 'Could not write to Health Connect. Grant blood pressure write permission in Health Connect settings.'
+            : 'No se pudo escribir en Health Connect. Activa el permiso de escritura de presión arterial en la configuración de Health Connect.',
         );
       }
     } catch (e) {

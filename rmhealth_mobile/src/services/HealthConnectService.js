@@ -32,17 +32,14 @@ const DATA_WINDOW_HOURS    = 72;   // FC, SpO2, Temp — ventana amplia
 const BP_WINDOW_HOURS      = 168;  // PA — 1 semana (mediciones infrecuentes)
 
 
-// Permisos completos — lectura Y escritura para sincronización bidireccional.
-// WRITE permite que RMHealth escriba datos de vuelta a Health Connect,
-// habilitando que Samsung Health y otras apps lean las mediciones.
+// Permisos — lectura completa + escritura solo de presión arterial.
+// WRITE_BLOOD_PRESSURE: BPSyncBridge escribe BP manual a Health Connect.
+// Other WRITE_* permissions removed for Google Play minimal-permission compliance.
 const HC_PERMISSIONS = [
   { accessType: 'read',  recordType: 'HeartRate'        },
   { accessType: 'read',  recordType: 'OxygenSaturation' },
   { accessType: 'read',  recordType: 'BodyTemperature'  },
   { accessType: 'read',  recordType: 'BloodPressure'    },
-  { accessType: 'write', recordType: 'HeartRate'        },
-  { accessType: 'write', recordType: 'OxygenSaturation' },
-  { accessType: 'write', recordType: 'BodyTemperature'  },
   { accessType: 'write', recordType: 'BloodPressure'    },
   // Sleep context (preventive, non-diagnostic) — permission requested only when SLEEP_MODE_ENABLED=true
   { accessType: 'read',  recordType: 'SleepSession'     },

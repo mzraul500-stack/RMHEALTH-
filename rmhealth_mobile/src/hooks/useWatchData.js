@@ -54,6 +54,7 @@ export function useWatchData() {
   }, []);
 
   // ── Sync BP from BPSyncBridge ─────────────────────────────────
+  // Writes manual BP to Health Connect via writeBloodPressure (WRITE_BLOOD_PRESSURE).
   const syncBPFromBridge = useCallback(async (sys, dia) => {
     try {
       await writeBloodPressure(sys, dia);

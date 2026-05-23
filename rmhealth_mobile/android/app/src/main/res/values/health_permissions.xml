@@ -2,7 +2,9 @@
 <resources>
     <!--
         Health Connect permissions declared for Google Play review.
-        Only READ permissions are requested — RMHealth does NOT write health data.
+        READ permissions: RMHealth reads vitals from wearables via Health Connect.
+        WRITE_BLOOD_PRESSURE: BPSyncBridge writes manual BP entries to Health Connect
+        so they are available to Samsung Health and other apps.
         READ_SLEEP is used by SleepModeScreen for rest visualization (non-diagnostic).
     -->
     <array name="health_permissions">
@@ -10,6 +12,7 @@
         <item>android.permission.health.READ_OXYGEN_SATURATION</item>
         <item>android.permission.health.READ_BODY_TEMPERATURE</item>
         <item>android.permission.health.READ_BLOOD_PRESSURE</item>
+        <item>android.permission.health.WRITE_BLOOD_PRESSURE</item>
         <!-- Sleep/rest visualization (preventive, non-diagnostic) -->
         <item>android.permission.health.READ_SLEEP</item>
     </array>
