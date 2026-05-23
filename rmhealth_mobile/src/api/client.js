@@ -13,6 +13,137 @@ if (!STATIC_TOKEN) {
   );
 }
 
+// ── Timeout & Retry Configuration ─────────────────────────────
+// Cloud Run cold starts can take 8-15s. Default fetch has no timeout,
+// causing React Native to surface a generic "Network Error" too early.
+const DEFAULT_TIMEOUT_MS = 20000;   // 20s for normal endpoints
+const ANALYSIS_TIMEOUT_MS = 30000;  // 30s for vital-signs analysis (cold start + ML model load)
+const RETRY_DELAY_MS = 2500;        // 2.5s wait before retry
+const MAX_RETRIES = 1;              // one automatic retry for cold-start errors
+
+/**
+ * Errors that indicate a Cloud Run cold start (safe to retry).
+ * Does NOT retry on 401, 403, 422 or successful error responses.
+ */
+function isColdStartError(error, response) {
+  if (error) {
+    const msg = error.message || '';
+    return (
+      error.name === 'AbortError' ||               // timeout
+      msg.includes('Network') ||                    // network failure
+      msg.includes('fetch') ||                      // fetch failed
+      msg.includes('Failed to fetch') ||
+      msg.includes('timeout')
+    );
+  }
+  if (response) {
+    return response.status === 503 || response.status === 504;
+  }
+  return false;
+}
+
+/**
+ * Enhanced fetch with timeout + one retry for cold-start scenarios.
+ * @param {string} url 
+ * @param {Object} options - fetch options
+ * @param {number} timeoutMs - timeout in milliseconds
+ * @param {Function} onRetry - optional callback when retrying (for UX status)
+ * @returns {Promise<Response>}
+ */
+async function fetchWithRetry(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS, onRetry = null) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      // If 503/504 and we have retries left, wait and retry
+      if (isColdStartError(null, response) && attempt < MAX_RETRIES) {
+        console.warn(`[RMHealth API] Cold start detected (${response.status}), retrying in ${RETRY_DELAY_MS}ms...`);
+        if (onRetry) onRetry(attempt + 1);
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+        continue;
+      }
+
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      lastError = error;
+
+      if (isColdStartError(error) && attempt < MAX_RETRIES) {
+        console.warn(`[RMHealth API] Cold start timeout, retrying in ${RETRY_DELAY_MS}ms...`, error.message);
+        if (onRetry) onRetry(attempt + 1);
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  // Should not reach here, but safety net
+  throw lastError || new Error('fetchWithRetry exhausted retries');
+}
+
+/**
+ * Classify an API error for user-facing messages.
+ * @param {Error} error
+ * @param {number} [statusCode]
+ * @returns {{ type: string, esMsg: string, enMsg: string }}
+ */
+function classifyError(error, statusCode = null) {
+  if (statusCode === 401 || statusCode === 403) {
+    return {
+      type: 'auth',
+      esMsg: 'Tu sesión expiró. Inicia sesión nuevamente.',
+      enMsg: 'Your session expired. Please log in again.',
+    };
+  }
+  if (statusCode === 429) {
+    return {
+      type: 'rate_limit',
+      esMsg: 'Demasiados intentos. Espera un momento y vuelve a intentar.',
+      enMsg: 'Too many attempts. Wait a moment and try again.',
+    };
+  }
+  if (statusCode === 500 || statusCode === 503 || statusCode === 504) {
+    return {
+      type: 'server',
+      esMsg: 'El servicio está temporalmente no disponible. Intenta de nuevo en unos segundos.',
+      enMsg: 'The service is temporarily unavailable. Try again in a few seconds.',
+    };
+  }
+  const msg = error?.message || '';
+  const isOffline = msg.includes('Network') || msg.includes('fetch') || msg.includes('Failed to fetch');
+  const isTimeout = error?.name === 'AbortError' || msg.includes('timeout');
+  if (isTimeout) {
+    return {
+      type: 'timeout',
+      esMsg: 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.',
+      enMsg: 'Could not connect to the server. Check your connection and try again.',
+    };
+  }
+  if (isOffline) {
+    return {
+      type: 'offline',
+      esMsg: 'Sin conexión a Internet. Revisa tu red e intenta de nuevo.',
+      enMsg: 'No internet connection. Check your network and try again.',
+    };
+  }
+  return {
+    type: 'unknown',
+    esMsg: 'Ocurrió un error inesperado. Intenta de nuevo.',
+    enMsg: 'An unexpected error occurred. Please try again.',
+  };
+}
+
 /**
  * Resolve the best auth token available.
  * Priority: 1) JWT from AuthContext, 2) Static env token.
@@ -32,26 +163,35 @@ function resolveToken(authToken) {
  */
 export const apiService = {
   /**
-   * Sends vital signs to the server
+   * Sends vital signs to the server.
+   * Uses 30s timeout + 1 automatic retry for Cloud Run cold starts.
    * @param {Object} vitalsData - The vital signs data to send
    * @param {string} [authToken] - JWT from AuthContext (preferred)
+   * @param {Function} [onRetry] - callback(attemptNumber) for UX status updates
    */
-  sendVitals: async (vitalsData, authToken = null) => {
+  sendVitals: async (vitalsData, authToken = null, onRetry = null) => {
     const token = resolveToken(authToken);
     try {
-      const response = await fetch(`${API_BASE_URL}/vital-signs`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+      const response = await fetchWithRetry(
+        `${API_BASE_URL}/vital-signs`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(vitalsData),
         },
-        body: JSON.stringify(vitalsData),
-      });
+        ANALYSIS_TIMEOUT_MS,
+        onRetry
+      );
 
       if (!response.ok) {
         const errorBody = await response.text();
         console.error(`[RMHealth API] Status ${response.status} — Detail: ${errorBody}`);
-        throw new Error(`API Error: ${response.status} — ${errorBody}`);
+        const err = new Error(`API Error: ${response.status} — ${errorBody}`);
+        err.statusCode = response.status;
+        throw err;
       }
 
       return await response.json();
@@ -387,3 +527,6 @@ export const apiService = {
     }
   },
 };
+
+// Export error classifier for screens to use
+export { classifyError };

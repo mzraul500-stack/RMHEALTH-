@@ -8,7 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import { COLORS, SPACING } from '../theme';
 import { EmergencyButton } from '../components/EmergencyButton';
 import { VitalInput } from '../components/VitalInput';
-import { apiService } from '../api/client';
+import { apiService, classifyError } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LocalHistoryService } from '../services/LocalHistoryService';
@@ -175,7 +175,10 @@ export const HomeScreen = () => {
           }
         };
 
-        const response = await apiService.sendVitals(payload, accessToken);
+        const response = await apiService.sendVitals(payload, accessToken, (attempt) => {
+          // UX: show retry status during cold start
+          if (isManual) setStatusMsg(language === 'en' ? 'CONNECTING TO SERVER...' : 'CONECTANDO CON EL SERVIDOR...');
+        });
         setLastResult(response);
         setLastSync(new Date().toLocaleTimeString());
         await LocalHistoryService.saveRecord(response, payload);
@@ -194,16 +197,13 @@ export const HomeScreen = () => {
           setShowCriticalModal(true);
         }
       } catch (err) {
-        // ... (existing catch logic)
-        const isOffline = err.message?.includes('Network') || err.message?.includes('fetch');
+        const errInfo = classifyError(err, err.statusCode);
         if (isManual) {
           Alert.alert(
-            isOffline
+            errInfo.type === 'offline'
               ? (language === 'en' ? 'No Internet' : 'Sin conexión')
-              : (language === 'en' ? 'Error' : 'Error de conexión'),
-            isOffline
-              ? (language === 'en' ? 'Check your internet.' : 'Revisa tu conexión.')
-              : (language === 'en' ? 'Could not reach server.' : 'No se pudo contactar al servidor.')
+              : (language === 'en' ? 'Error' : 'Error'),
+            language === 'en' ? errInfo.enMsg : errInfo.esMsg
           );
         } else {
           console.warn('[HomeScreen] Auto-analysis failed silently:', err.message);
