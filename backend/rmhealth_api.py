@@ -1511,6 +1511,24 @@ async def health_check():
     }
 
 
+# ── Privacy Policy (Public — required by Google Play) ──
+# Serves the privacy policy HTML page at /privacy (no auth required).
+# Google Play Console will reference this URL: https://rmhealth-api-XXXXX.run.app/privacy
+# or https://rmhealth.ai/privacy (via DNS/redirect).
+from fastapi.responses import HTMLResponse
+import pathlib
+
+@app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
+async def privacy_policy():
+    """Serve the public privacy policy page (no authentication required)."""
+    # Resolve path relative to this file's location
+    _here = pathlib.Path(__file__).resolve().parent
+    privacy_file = _here / "static" / "privacy.html"
+    if privacy_file.exists():
+        return HTMLResponse(content=privacy_file.read_text(encoding="utf-8"), status_code=200)
+    # Fallback: redirect to rmhealth.ai if file not found
+    return RedirectResponse(url="https://rmhealth.ai/privacy")
+
 @app.get("/api/emergencies/latest")
 async def get_latest_emergency(user=Depends(verify_token)):
     """Fetch the latest emergency alert for the authenticated user.
@@ -4751,8 +4769,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        # Relaxed CSP for dashboard — allow inline styles/scripts and Google Fonts
-        if request.url.path.startswith("/dashboard"):
+        # Relaxed CSP for dashboard and privacy — allow inline styles/scripts and Google Fonts
+        if request.url.path.startswith("/dashboard") or request.url.path == "/privacy":
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
                 "script-src 'self' 'unsafe-inline'; "

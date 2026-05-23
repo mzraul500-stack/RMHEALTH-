@@ -17,6 +17,7 @@ local.settings.json
 google-services.json
 GoogleService-Info.plist
 backup_env_vars*.yaml
+.cloudrun-env.yaml
 secret*.json
 token*.json
 private*.key
@@ -28,6 +29,7 @@ private*.key
 *.pem
 *.key
 *.crt
+keystore.properties
 # EXCEPCIÓN: debug.keystore no va a git en ningún caso
 rmhealth_mobile/android/app/debug.keystore
 
@@ -38,9 +40,10 @@ rmhealth-releases/
 rmhealth-docs/
 rmhealth-app/
 
-# ─── APKs de release (binarios grandes) ──────────────────────
+# ─── APKs/AABs de release (binarios grandes) ─────────────────
 Apk/
 *.apk
+*.aab
 
 # ─── Crash logs y diagnóstico ────────────────────────────────
 crash_log.txt
