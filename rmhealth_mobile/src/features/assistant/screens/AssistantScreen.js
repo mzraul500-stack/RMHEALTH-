@@ -36,9 +36,13 @@ export const AssistantScreen = () => {
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef();
+  const isSendingRef = useRef(false);
+  const hasBuiltCtxRef = useRef(false);
 
-  // Build preventive context on mount and when vitals change
+  // Build preventive context ONCE on mount (not on every poll cycle)
   useEffect(() => {
+    if (hasBuiltCtxRef.current) return;
+    hasBuiltCtxRef.current = true;
     (async () => {
       try {
         const summary = await buildPreventiveSummary(watchData);
@@ -47,11 +51,12 @@ export const AssistantScreen = () => {
         console.warn('[AssistantScreen] PreventiveSummary error:', e);
       }
     })();
-  }, [watchData.heartRate, watchData.spo2, watchData.systolic]);
+  }, []);
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || thinking) return;
+    if (!text || thinking || isSendingRef.current) return;
+    isSendingRef.current = true;
 
     const userMsg = {
       id: Date.now().toString(),
@@ -90,6 +95,7 @@ export const AssistantScreen = () => {
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setThinking(false);
+      isSendingRef.current = false;
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 200);
     }
   };

@@ -54,13 +54,20 @@ RMHEALTH_DISCLAIMER = "RMHealth proporciona observaciones preventivas. No consti
 # These are user-language content, NOT technical code — retained intentionally.
 # ---------------------------------------------------------------------------
 _PROHIBITED_PATTERNS = [
-    # Spanish safety patterns (user-facing content)
-    "te receto", "te prescribo", "toma ", "mg cada", "mg al día",
+    # Spanish safety patterns — target actual diagnostic/prescriptive phrases.
+    # NOTE: Generic words like "tienes" or "toma" were removed because they
+    # triggered false positives on virtually every Gemini response in Spanish,
+    # causing the chatbot to always return the generic fallback (loop appearance).
+    "te receto", "te prescribo", "mg cada", "mg al día",
     "dosis de", "diagnóstico:", "diagnostico:", "mi diagnóstico es",
-    "padeces de", "tienes ", "sufres de", "debes tomar",
-    # English safety patterns (user-facing content)
-    "i prescribe", "i diagnose", "take ", "mg daily", "dosage of",
-    "you have ", "you suffer from", "diagnosis:", "my diagnosis is",
+    "padeces de", "sufres de", "debes tomar",
+    "tienes diabetes", "tienes hipertensión", "tienes cáncer",
+    "tienes una enfermedad", "tu diagnóstico es",
+    # English safety patterns — target actual diagnostic/prescriptive phrases.
+    "i prescribe", "i diagnose", "mg daily", "dosage of",
+    "you suffer from", "diagnosis:", "my diagnosis is",
+    "you have diabetes", "you have cancer", "you have hypertension",
+    "you have a disease", "your diagnosis is",
 ]
 
 _vertex_initialized = False
