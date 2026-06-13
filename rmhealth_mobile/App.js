@@ -406,7 +406,7 @@ function PermissionGate({ children }) {
 const CONSENT_CACHE_KEY = '@rmhealth/consents_cached';
 
 function ConsentGate({ children }) {
-  const { accessToken, user, refreshAccessToken, isOffline } = useAuth();
+  const { accessToken, user, refreshAccessToken } = useAuth();
   const [consentsDone, setConsentsDone] = useState(null); // null=loading, true/false=resolved
   const [syncBanner, setSyncBanner] = useState(null); // 'offline' | 'error' | null
   const isRunningRef = React.useRef(false);
@@ -517,8 +517,8 @@ function ConsentGate({ children }) {
             }
           }
           // If refresh was definitive failure, AuthContext already handles re-login.
-          // Don't call logout here — just show consent screen or cached Home.
-          if (!settled) { settled = true; setConsentsDone(false); }
+          // Don't call logout here — user is authenticated so they previously consented.
+          if (!settled) { settled = true; setConsentsDone(true); setSyncBanner('error'); }
           return;
         }
 
@@ -528,9 +528,10 @@ function ConsentGate({ children }) {
           // Already showing Home from cache — just show banner
           setSyncBanner('error');
         } else {
-          // No cache — still allow consent screen
+          // No cache — user is authenticated so they previously consented.
+          // Let them through with error banner; verify when network returns.
           settled = true;
-          setConsentsDone(false);
+          setConsentsDone(true);
           setSyncBanner('error');
         }
 
@@ -541,9 +542,10 @@ function ConsentGate({ children }) {
           // Already showing Home from cache — just show offline banner
           setSyncBanner('offline');
         } else {
-          // No cache available
+          // No cache — user is authenticated so they previously consented.
+          // Let them through with offline banner; verify when network returns.
           settled = true;
-          setConsentsDone(false);
+          setConsentsDone(true);
           setSyncBanner('offline');
         }
       } finally {

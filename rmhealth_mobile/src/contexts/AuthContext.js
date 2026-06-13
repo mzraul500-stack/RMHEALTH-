@@ -1,30 +1,33 @@
 /**
  * RMHealth AuthContext — Global Authentication State (M1 + M8)
  *
- * Manages:
- * - User session with JWT access + refresh tokens
- * - Secure token storage via expo-secure-store (never AsyncStorage)
- * - Persistent session (auto-logout removed for continuous monitoring)
- * - Token refresh before expiry
+ * SIMPLE PERMANENT SESSION:
+ * This is a continuous medical monitoring app. The session NEVER
+ * expires automatically. It ends ONLY when:
+ *   1. User presses "Cerrar Sesión" (explicit logout)
+ *   2. User changes password (revokes all tokens)
+ *   3. Account is deleted
+ *
+ * Token refresh is handled LAZILY by the 401 interceptor in client.js.
+ * This file does NOT attempt background refresh, proactive renewal,
+ * retry loops, or any other complexity that could break the session.
  *
  * © 2025 MORALES ZEPEDA RAUL | Registro INDAUTOR: 03-2025-070109072500-01
  */
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Alert, AppState } from 'react-native';
+import { Alert } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL
   || 'https://rmhealth-api-292048010515.us-central1.run.app/api';
 
-// Secure storage keys
+// Secure storage keys — shared with client.js 401 interceptor
 const KEYS = {
   ACCESS_TOKEN: 'rmhealth_access_token',
   REFRESH_TOKEN: 'rmhealth_refresh_token',
   USER_DATA: 'rmhealth_user_data',
 };
-
-// Session is persistent; auto-logout removed per founder requirements.
 
 const AuthContext = createContext(null);
 
@@ -41,15 +44,9 @@ export function AuthProvider({ children }) {
   const [accessToken, setAccessToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isOffline, setIsOffline] = useState(false);
 
   // Prevent concurrent refresh calls
   const refreshInProgressRef = useRef(null);
-
-  // Inactivity tracking
-  const lastActivityRef = useRef(Date.now());
-  const inactivityTimerRef = useRef(null);
-  const warningShownRef = useRef(false);
 
   // ── Secure Storage Helpers ──
   const saveTokens = async (access, refresh) => {
@@ -69,16 +66,14 @@ export function AuthProvider({ children }) {
     await SecureStore.deleteItemAsync(KEYS.USER_DATA);
   };
 
-  // ── API Helpers ──
+  // ── API Helper ──
   const authFetch = async (endpoint, options = {}) => {
     const url = `${API_BASE_URL}${endpoint}`;
     const headers = {
       'Content-Type': 'application/json',
       ...options.headers,
     };
-
-    const response = await fetch(url, { ...options, headers });
-    return response;
+    return await fetch(url, { ...options, headers });
   };
 
   // ── Auth Actions ──
@@ -132,7 +127,6 @@ export function AuthProvider({ children }) {
     setAccessToken(data.access_token);
     setUser(data.user);
     setIsAuthenticated(true);
-    resetInactivityTimer();
 
     return data;
   };
@@ -151,6 +145,11 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  /**
+   * EXPLICIT LOGOUT — the ONLY way to end a session.
+   * Triggered ONLY by the user pressing "Cerrar Sesión".
+   * No automatic process should ever call this.
+   */
   const logout = async () => {
     try {
       if (accessToken) {
@@ -167,7 +166,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     setAccessToken(null);
     setIsAuthenticated(false);
-    clearInactivityTimer();
+    console.log('[AuthContext] Session cleared by EXPLICIT user logout');
   };
 
   const changePassword = async (currentPassword, newPassword) => {
@@ -185,7 +184,7 @@ export function AuthProvider({ children }) {
       throw new Error(data.detail || 'Error al cambiar contraseña');
     }
 
-    // Force re-login after password change
+    // Force re-login after password change (backend revokes all tokens)
     await logout();
     return data;
   };
@@ -200,16 +199,13 @@ export function AuthProvider({ children }) {
     return data;
   };
 
-  /**
-   * Refresh access token with 10s timeout.
-   * Returns: { success: boolean, definitive: boolean }
-   *   success=true   → new tokens saved
-   *   definitive=true → refresh token is permanently invalid (401/403), caller should re-login
-   *   definitive=false → transient failure (timeout/network/500), session should be preserved
-   *
-   * Prevents concurrent refresh calls via refreshInProgressRef.
-   */
-  const refreshAccessToken = async () => {
+  // ── Token Refresh ──
+  // Called by client.js 401 interceptor when an API call gets 401.
+  // Also available for manual refresh if needed.
+  // NEVER clears the session — worst case, the token stays stale
+  // and client.js handles retries per-request.
+
+  const refreshAccessToken = useCallback(async () => {
     // Deduplicate: if a refresh is already in flight, wait for it
     if (refreshInProgressRef.current) {
       return refreshInProgressRef.current;
@@ -221,14 +217,15 @@ export function AuthProvider({ children }) {
         const userData = await SecureStore.getItemAsync(KEYS.USER_DATA);
 
         if (!refreshToken || !userData) {
-          return { success: false, definitive: true };
+          console.warn('[AuthContext] No refresh token available');
+          return { success: false };
         }
 
         const parsedUser = JSON.parse(userData);
 
-        // Fetch with 10s timeout — prevents Cloud Run cold start from blocking startup
+        // 15s timeout for the refresh call
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
 
         let response;
         try {
@@ -244,26 +241,22 @@ export function AuthProvider({ children }) {
           clearTimeout(timeoutId);
         }
 
-        if (!response.ok) {
-          // 401/403 = refresh token definitively invalid → must re-login
-          // 429/500/503 = transient → preserve session
-          const isDefinitive = response.status === 401 || response.status === 403;
-          if (!isDefinitive) {
-            setIsOffline(true);
-          }
-          return { success: false, definitive: isDefinitive };
+        if (response.ok) {
+          const data = await response.json();
+          await saveTokens(data.access_token, data.refresh_token);
+          setAccessToken(data.access_token);
+          console.log('[AuthContext] Token refreshed successfully');
+          return { success: true };
         }
 
-        const data = await response.json();
-        await saveTokens(data.access_token, data.refresh_token);
-        setAccessToken(data.access_token);
-        setIsOffline(false);
-        return { success: true, definitive: false };
+        // ANY failure — log it but NEVER clear the session
+        console.warn(`[AuthContext] Refresh failed with status ${response.status} — session preserved`);
+        return { success: false };
+
       } catch (e) {
-        // Network error, timeout (AbortError), etc. = transient
-        console.warn('[AuthContext] Refresh transient error:', e?.name || e?.message);
-        setIsOffline(true);
-        return { success: false, definitive: false };
+        // Network error, timeout, etc. — NEVER clear the session
+        console.warn('[AuthContext] Refresh error:', e?.name || e?.message, '— session preserved');
+        return { success: false };
       } finally {
         refreshInProgressRef.current = null;
       }
@@ -271,80 +264,33 @@ export function AuthProvider({ children }) {
 
     refreshInProgressRef.current = doRefresh();
     return refreshInProgressRef.current;
-  };
-
-  // ── Inactivity Timer ──
-
-  const resetInactivityTimer = useCallback(() => {
-    lastActivityRef.current = Date.now();
-    warningShownRef.current = false;
   }, []);
-
-  const clearInactivityTimer = useCallback(() => {
-    if (inactivityTimerRef.current) {
-      clearInterval(inactivityTimerRef.current);
-      inactivityTimerRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      clearInactivityTimer();
-      return;
-    }
-
-    // Persistent session requested by founder. 
-    // Inactivity logout removed to prevent monitoring interruptions.
-    // The session remains open until explicit logout or token revocation.
-    
-    return () => clearInactivityTimer();
-  }, [isAuthenticated]);
-
-  // Track app state changes for activity
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active' && isAuthenticated) {
-        resetInactivityTimer();
-      }
-    });
-    return () => subscription?.remove();
-  }, [isAuthenticated]);
 
   // ── Restore Session on App Start ──
-  // CRITICAL: Set isAuthenticated=true and isLoading=false IMMEDIATELY
-  // when stored tokens exist. Refresh happens in background.
-  // This ensures Home renders fast and no loading screen blocks the user.
+  // Read tokens from SecureStore → mark authenticated → done.
+  // NO background refresh. NO network calls. NO conditions that clear session.
+  // Token refresh happens lazily via client.js 401 interceptor on first API call.
 
   useEffect(() => {
     const restoreSession = async () => {
+      console.log('[AuthContext] Restoring session from SecureStore...');
       try {
         const storedToken = await SecureStore.getItemAsync(KEYS.ACCESS_TOKEN);
         const storedUser = await SecureStore.getItemAsync(KEYS.USER_DATA);
 
         if (storedToken && storedUser) {
+          const parsedUser = JSON.parse(storedUser);
           setAccessToken(storedToken);
-          setUser(JSON.parse(storedUser));
+          setUser(parsedUser);
           setIsAuthenticated(true);
-          // Release loading gate IMMEDIATELY — don't wait for refresh
-          setIsLoading(false);
-
-          // Background refresh — does NOT block startup
-          const result = await refreshAccessToken();
-          if (result.definitive) {
-            // Refresh token permanently invalid — require re-login
-            console.warn('[AuthContext] Refresh token definitively invalid — clearing session');
-            await clearStorage();
-            setUser(null);
-            setAccessToken(null);
-            setIsAuthenticated(false);
-          }
-          // If transient failure: session stays active with stored token
-          return;
+          console.log('[AuthContext] Session restored for:', parsedUser.email);
+        } else {
+          console.log('[AuthContext] No stored session — showing login');
         }
       } catch (e) {
-        console.warn('[AuthContext] Session restore failed:', e);
+        console.warn('[AuthContext] Error reading SecureStore:', e);
+        // On error, DON'T clear anything — just show login screen
       }
-      // No stored tokens or error — show login
       setIsLoading(false);
     };
 
@@ -356,7 +302,6 @@ export function AuthProvider({ children }) {
     accessToken,
     isAuthenticated,
     isLoading,
-    isOffline,
     register,
     login,
     verify2FA,
@@ -365,7 +310,6 @@ export function AuthProvider({ children }) {
     changePassword,
     forgotPassword,
     refreshAccessToken,
-    resetInactivityTimer,
   };
 
   return (

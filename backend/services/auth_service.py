@@ -2,7 +2,12 @@
 RMHealth Authentication Service (M1 + M8)
 
 Handles: registration, login, 2FA, JWT tokens, password management, rate limiting.
-Security: bcrypt salt:12, JWT 24h access / 7d refresh, 2FA via SendGrid.
+Security: bcrypt salt:12, PERMANENT JWT sessions (medical monitoring), 2FA via SendGrid.
+
+Session Policy: Tokens are effectively permanent. This is a continuous medical
+monitoring app — disconnecting a patient is more dangerous than a theoretical
+token theft (mitigated by device-level SecureStore/Keychain). Session ends ONLY
+by explicit logout or password change.
 
 © 2025 MORALES ZEPEDA RAUL | Registro INDAUTOR: 03-2025-070109072500-01
 """
@@ -29,8 +34,14 @@ if not _jwt_env:
     )
 JWT_SECRET = _jwt_env or ""  # Empty string — all encode/decode will fail safely
 JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRY = timedelta(hours=24)
-REFRESH_TOKEN_EXPIRY = timedelta(days=7)
+# PERMANENT SESSION — Medical monitoring app must NEVER auto-disconnect.
+# Tokens effectively never expire (10 years). Session ends ONLY by:
+#   1. Explicit logout (user presses "Cerrar Sesión")
+#   2. Password change (revokes all tokens)
+#   3. Account deletion
+# Security is maintained by device-level SecureStore/Keychain storage.
+ACCESS_TOKEN_EXPIRY = timedelta(days=3650)   # ~10 years — effectively permanent
+REFRESH_TOKEN_EXPIRY = timedelta(days=3650)  # ~10 years — effectively permanent
 TWO_FACTOR_EXPIRY = timedelta(minutes=10)
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_DURATION = timedelta(minutes=15)

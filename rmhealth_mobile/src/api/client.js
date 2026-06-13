@@ -102,8 +102,8 @@ function classifyError(error, statusCode = null) {
   if (statusCode === 401 || statusCode === 403) {
     return {
       type: 'auth',
-      esMsg: 'Tu sesión expiró. Inicia sesión nuevamente.',
-      enMsg: 'Your session expired. Please log in again.',
+      esMsg: 'Revalidando tu sesión. Intenta de nuevo en un momento.',
+      enMsg: 'Revalidating your session. Please try again in a moment.',
     };
   }
   if (statusCode === 429) {
@@ -157,6 +157,120 @@ function resolveToken(authToken) {
 }
 
 /**
+ * 401 Interceptor — Auto-refresh token and retry on auth errors.
+ *
+ * When any API call returns 401, this function:
+ * 1. Reads the refresh token from SecureStore
+ * 2. Calls /auth/refresh to get new tokens
+ * 3. Saves new tokens to SecureStore
+ * 4. Retries the original request with the new access token
+ *
+ * This makes token expiration completely transparent to the user.
+ * The interceptor reads/writes SecureStore directly (shared with AuthContext)
+ * to avoid circular imports.
+ */
+let _refreshPromise = null;
+
+async function refreshTokenAndRetry(originalUrl, originalOptions, timeoutMs) {
+  // Deduplicate concurrent refresh calls
+  if (!_refreshPromise) {
+    _refreshPromise = (async () => {
+      try {
+        const SecureStore = require('expo-secure-store');
+        const refreshToken = await SecureStore.getItemAsync('rmhealth_refresh_token');
+        const userData = await SecureStore.getItemAsync('rmhealth_user_data');
+
+        if (!refreshToken || !userData) {
+          console.warn('[API Client] No refresh token available for 401 retry');
+          return null;
+        }
+
+        const parsedUser = JSON.parse(userData);
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 15000);
+
+        try {
+          const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              refresh_token: refreshToken,
+              user_id: parsedUser.id,
+            }),
+            signal: controller.signal,
+          });
+
+          clearTimeout(tid);
+
+          if (!res.ok) {
+            console.warn(`[API Client] Token refresh failed: ${res.status}`);
+            return null;
+          }
+
+          const data = await res.json();
+          // Save new tokens to SecureStore (AuthContext will pick them up)
+          await SecureStore.setItemAsync('rmhealth_access_token', data.access_token);
+          if (data.refresh_token) {
+            await SecureStore.setItemAsync('rmhealth_refresh_token', data.refresh_token);
+          }
+          await SecureStore.setItemAsync('rmhealth_last_refresh_ts', Date.now().toString());
+
+          console.log('[API Client] Token refreshed via 401 interceptor');
+          return data.access_token;
+        } catch (e) {
+          clearTimeout(tid);
+          console.warn('[API Client] Token refresh error:', e?.message);
+          return null;
+        }
+      } finally {
+        _refreshPromise = null;
+      }
+    })();
+  }
+
+  const newToken = await _refreshPromise;
+  if (!newToken) return null;
+
+  // Retry the original request with the new token
+  const retryOptions = {
+    ...originalOptions,
+    headers: {
+      ...originalOptions.headers,
+      'Authorization': `Bearer ${newToken}`,
+    },
+  };
+
+  // Remove signal from retry (create fresh one)
+  delete retryOptions.signal;
+
+  try {
+    return await fetchWithRetry(originalUrl, retryOptions, timeoutMs);
+  } catch (e) {
+    console.warn('[API Client] Retry after refresh failed:', e?.message);
+    return null;
+  }
+}
+
+/**
+ * Enhanced fetch that handles 401 automatically via token refresh.
+ * Use this instead of fetchWithRetry for authenticated endpoints.
+ */
+async function fetchAuthenticated(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS, onRetry = null) {
+  const response = await fetchWithRetry(url, options, timeoutMs, onRetry);
+
+  // If 401, try to refresh token and retry once
+  if (response.status === 401) {
+    console.log('[API Client] Got 401 — attempting auto-refresh...');
+    const retryResponse = await refreshTokenAndRetry(url, options, timeoutMs);
+    if (retryResponse) {
+      return retryResponse;
+    }
+  }
+
+  return response;
+}
+
+/**
  * Service to handle communications with RMHealth Backend.
  * All methods accept an optional `authToken` parameter (JWT from AuthContext).
  * Falls back to the static EXPO_PUBLIC_API_TOKEN for backward compatibility.
@@ -172,7 +286,7 @@ export const apiService = {
   sendVitals: async (vitalsData, authToken = null, onRetry = null) => {
     const token = resolveToken(authToken);
     try {
-      const response = await fetchWithRetry(
+      const response = await fetchAuthenticated(
         `${API_BASE_URL}/vital-signs`,
         {
           method: 'POST',
